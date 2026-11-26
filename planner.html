@@ -1,0 +1,1085 @@
+<title>House Planner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap">
+<style>
+/* Layout: drafting-table app. Header with floor tabs, library on the left, the plan in the middle, inspector + versions on the right. */
+:root {
+  --bg: #e9edf1;
+  --panel: #f8fafb;
+  --line: #d3dae2;
+  --ink: #1d2530;
+  --muted: #5c6878;
+  --accent: #2b5fd9;
+  --accent-ink: #ffffff;
+  --accent-soft: #dbe5fb;
+  --wall: #2a323d;
+  --floor: #ffffff;
+  --grid: #e6ebf0;
+  --grid-major: #d2dae3;
+  --fixture: #cfd6de;
+  --warn: #c27c0e;
+  --clash: #d23c3c;
+  --f0: #9cc3f0; --f1: #b5a6ef; --f2: #f2b7a1; --f3: #a8dcc0;
+  --f4: #f2d88a; --f5: #c9cfd6; --f6: #e7a9c8; --f7: #9fd6dc;
+  --item-stroke: #2a323d;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-head: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161b; --panel: #1a2027; --line: #2c343e; --ink: #e5eaf0; --muted: #98a4b3;
+    --accent: #7ea2ff; --accent-ink: #0d1320; --accent-soft: #223258;
+    --wall: #a9b5c3; --floor: #1f262e; --grid: #262e37; --grid-major: #303a45; --fixture: #3a4450;
+    --warn: #e2a13a; --clash: #ff6b6b;
+    --f0: #3d6aa3; --f1: #5d4fa0; --f2: #a0604a; --f3: #3f8a66; --f4: #9a8233; --f5: #5b6672; --f6: #93557a; --f7: #3d8790;
+    --item-stroke: #d8e0ea;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12161b; --panel: #1a2027; --line: #2c343e; --ink: #e5eaf0; --muted: #98a4b3;
+  --accent: #7ea2ff; --accent-ink: #0d1320; --accent-soft: #223258;
+  --wall: #a9b5c3; --floor: #1f262e; --grid: #262e37; --grid-major: #303a45; --fixture: #3a4450;
+  --warn: #e2a13a; --clash: #ff6b6b;
+  --f0: #3d6aa3; --f1: #5d4fa0; --f2: #a0604a; --f3: #3f8a66; --f4: #9a8233; --f5: #5b6672; --f6: #93557a; --f7: #3d8790;
+  --item-stroke: #d8e0ea;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { display: grid; grid-template-rows: auto 1fr; min-height: 100%; }
+header {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
+  padding-block: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--line); background: var(--panel);
+}
+.brand { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.brand h1 { margin: 0; font-family: var(--font-head); font-size: 20px; font-weight: 600; letter-spacing: 0.01em; }
+.brand span { color: var(--muted); font-size: 12px; }
+.tabs { display: flex; gap: 4px; background: var(--bg); padding: 4px; border-radius: 8px; border: 1px solid var(--line); flex-wrap: wrap; }
+.tab { border: 0; background: transparent; padding: 7px 14px; border-radius: 6px; display: flex; gap: 8px; align-items: baseline; }
+.tab small { color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+.tab[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+.tab[aria-selected="true"] small { color: inherit; opacity: 0.8; }
+.sync { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.live { background: #2ea86b; }
+.dot.local { background: var(--warn); }
+
+main {
+  display: grid; grid-template-columns: 240px minmax(0, 1fr) 290px; gap: 0; min-height: 0; align-items: start;
+}
+aside { align-self: stretch; background: var(--panel); border-right: 1px solid var(--line); padding: 16px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; min-width: 0; }
+aside.right { border-right: 0; border-left: 1px solid var(--line); }
+h2 { margin: 0 0 8px; font-family: var(--font-head); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.hint { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 0; }
+
+.lib { display: flex; flex-direction: column; gap: 6px; }
+.card {
+  display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 10px;
+  border: 1px solid var(--line); background: var(--floor); border-radius: 8px; padding: 8px;
+  touch-action: none; user-select: none; cursor: grab; text-align: left; width: 100%;
+}
+.card:hover { border-color: var(--accent); }
+.card .icon { width: 40px; height: 40px; display: grid; place-items: center; }
+.card .meta { min-width: 0; }
+.card .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .dims { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.card .x { border: 0; background: transparent; color: var(--muted); padding: 4px 6px; border-radius: 4px; font-size: 12px; }
+.card .x:hover { background: var(--bg); color: var(--clash); }
+.card .x.confirm { color: var(--clash); font-weight: 600; }
+
+form.new { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+form.new .full { grid-column: 1 / -1; }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
+input[type="text"], input[type="number"], select {
+  width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--floor);
+}
+input[type="number"] { font-family: var(--font-mono); }
+.btn { border: 1px solid var(--line); background: var(--floor); padding: 7px 12px; border-radius: 6px; font-weight: 500; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.danger { color: var(--clash); }
+.btn.danger.solid { background: var(--clash); color: #fff; border-color: var(--clash); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+.sw { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
+.sw[aria-pressed="true"] { border-color: var(--ink); }
+
+.stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: sticky; top: 0; }
+.toolbar {
+  display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 8px 12px;
+  border-bottom: 1px solid var(--line); background: var(--panel); font-size: 12px;
+}
+.toolbar label { display: flex; gap: 6px; align-items: center; color: var(--muted); }
+.toolbar select { width: auto; padding: 4px 6px; }
+.zoom { display: flex; gap: 4px; margin-left: auto; }
+.zoom .btn { padding: 4px 10px; }
+.readout { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding: 6px 12px; border-top: 1px solid var(--line); background: var(--panel); min-height: 30px; overflow-wrap: anywhere; }
+.canvas { position: relative; flex: none; overflow: auto; min-height: 420px; height: calc(100vh - 175px); }
+.canvas svg { position: absolute; inset: 0 auto auto 0; }
+.canvas svg { display: block; width: 100%; height: 100%; user-select: none; -webkit-user-select: none; }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); pointer-events: none; }
+
+/* SVG classes */
+.wallpoly { fill: var(--wall); stroke: var(--wall); stroke-width: 24; stroke-linejoin: miter; }
+.roompoly { fill: var(--floor); }
+.gridpoly { fill: url(#grid); pointer-events: none; }
+.stairpoly { fill: var(--fixture); }
+.tread { stroke: var(--wall); stroke-width: 1.2; opacity: 0.55; }
+.window { stroke: var(--floor); stroke-width: 12; }
+.window2 { stroke: var(--wall); stroke-width: 1.2; }
+.fixture { fill: url(#hatch); stroke: var(--wall); stroke-width: 1.5; }
+.chimney { fill: var(--wall); }
+.roomname { font-family: var(--font-head); font-weight: 600; fill: var(--muted); text-anchor: middle; pointer-events: none; opacity: 0.85; }
+.roomdims { font-family: var(--font-mono); fill: var(--muted); text-anchor: middle; pointer-events: none; opacity: 0.8; }
+.orient { font-family: var(--font-head); font-size: 13px; letter-spacing: 0.25em; fill: var(--muted); text-anchor: middle; }
+.item { cursor: grab; touch-action: none; }
+.item.dragging { cursor: grabbing; }
+.item .body { stroke: var(--item-stroke); stroke-width: 1.5; }
+.item .detail { fill: var(--floor); stroke: var(--item-stroke); stroke-width: 1; opacity: 0.9; }
+.item .fold { stroke: var(--item-stroke); stroke-width: 1; opacity: 0.6; fill: none; }
+.item .label { font-family: var(--font-ui); font-weight: 600; fill: var(--ink); text-anchor: middle; pointer-events: none; }
+.item .size { font-family: var(--font-mono); fill: var(--ink); text-anchor: middle; pointer-events: none; opacity: 0.8; }
+.item.sel .body { stroke: var(--accent); stroke-width: 3.5; }
+.item.warn .body { stroke: var(--warn); stroke-width: 3; stroke-dasharray: 8 5; }
+.item.clash .body { stroke: var(--clash); stroke-width: 3.5; }
+.guide { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 4; pointer-events: none; }
+.dim { stroke: var(--accent); stroke-width: 1.3; pointer-events: none; }
+.dimtxt { font-family: var(--font-mono); font-size: 12px; fill: var(--accent); text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: var(--floor); stroke-width: 4px; }
+
+.insp { display: flex; flex-direction: column; gap: 10px; }
+.insp .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.status { font-size: 12px; padding: 6px 8px; border-radius: 6px; background: var(--bg); color: var(--muted); }
+.status.warn { color: var(--warn); }
+.status.clash { color: var(--clash); }
+
+.versions { display: flex; flex-direction: column; gap: 6px; }
+.ver { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--floor); display: flex; flex-direction: column; gap: 6px; }
+.ver .vt { font-weight: 500; overflow-wrap: anywhere; }
+.ver .vm { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+.ver .row .btn { padding: 4px 10px; font-size: 12px; }
+.empty { border: 1px dashed var(--line); border-radius: 8px; padding: 12px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+.ghost { position: fixed; z-index: 50; pointer-events: none; padding: 6px 10px; border-radius: 6px; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 500; transform: translate(-50%, -120%); box-shadow: 0 4px 14px rgba(0,0,0,0.2); }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 13px; z-index: 60; max-width: calc(100vw - 32px); }
+
+@media (max-width: 1100px) {
+  main { grid-template-columns: 220px minmax(0, 1fr); }
+  aside.right { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
+}
+@media (max-width: 720px) {
+  main { grid-template-columns: minmax(0, 1fr); }
+  aside { border-right: 0; border-bottom: 1px solid var(--line); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  aside.left { order: 2; }
+  .stage { order: 1; }
+  aside.right { order: 3; grid-template-columns: minmax(0, 1fr); }
+  .canvas { height: 68vh; min-height: 360px; }
+  .sync { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <header>
+    <div class="brand">
+      <h1>House Planner</h1>
+      <span>Approx. 123.9 m² over three floors · drag furniture to place it</span>
+    </div>
+    <nav class="tabs" role="tablist" id="tabs"></nav>
+    <div class="sync"><span class="dot" id="syncdot"></span><span id="synctext">Connecting…</span></div>
+  </header>
+
+  <main>
+    <aside class="left">
+      <section>
+        <h2>Furniture</h2>
+        <p class="hint" style="margin-bottom:10px">Drag onto the plan, or tap to drop it in the middle of the view.</p>
+        <div class="lib" id="lib"></div>
+      </section>
+      <section>
+        <h2>New item</h2>
+        <form class="new" id="newform" autocomplete="off">
+          <label class="f full">Name<input type="text" id="nf-name" placeholder="e.g. Sofa" maxlength="40" required></label>
+          <label class="f">Width (cm)<input type="number" id="nf-w" min="5" max="1000" step="1" placeholder="200" required></label>
+          <label class="f">Depth (cm)<input type="number" id="nf-d" min="5" max="1000" step="1" placeholder="90" required></label>
+          <div class="full"><div class="swatches" id="nf-colors"></div></div>
+          <button class="btn primary full" type="submit">Add to library &amp; plan</button>
+        </form>
+      </section>
+    </aside>
+
+    <section class="stage">
+      <div class="toolbar">
+        <label for="gridsel">Grid snap
+          <select id="gridsel">
+            <option value="1">1 cm</option>
+            <option value="5" selected>5 cm</option>
+            <option value="10">10 cm</option>
+            <option value="25">25 cm</option>
+          </select>
+        </label>
+        <label for="edgesnap"><input type="checkbox" id="edgesnap" checked> Snap to walls &amp; furniture</label>
+        <div class="zoom">
+          <button class="btn" id="zout" title="Zoom out" aria-label="Zoom out">−</button>
+          <button class="btn" id="zfit">Fit</button>
+          <button class="btn" id="zin" title="Zoom in" aria-label="Zoom in">+</button>
+        </div>
+      </div>
+      <div class="canvas" id="canvas">
+        <svg id="svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Floor plan">
+          <defs>
+            <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
+              <path d="M10 0V50M20 0V50M30 0V50M40 0V50M0 10H50M0 20H50M0 30H50M0 40H50" style="stroke: var(--grid); stroke-width: 0.8" fill="none"/>
+              <path d="M0 0V50M0 0H50" style="stroke: var(--grid-major); stroke-width: 1.2" fill="none"/>
+            </pattern>
+            <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <rect width="8" height="8" style="fill: var(--fixture)"/>
+              <path d="M0 0V8" style="stroke: var(--wall); stroke-width: 1; opacity: 0.35"/>
+            </pattern>
+          </defs>
+          <g id="layer-plan"></g>
+          <g id="layer-items"></g>
+          <g id="layer-over"></g>
+        </svg>
+        <div class="loading" id="loading" hidden>Loading the shared layout…</div>
+      </div>
+      <div class="readout" id="readout">Select a piece of furniture to see its clearance to the walls.</div>
+    </section>
+
+    <aside class="right">
+      <section>
+        <h2>Selected</h2>
+        <div id="insp"></div>
+      </section>
+      <section>
+        <h2>Saved versions</h2>
+        <form class="row" id="saveform" style="margin-bottom:10px" autocomplete="off">
+          <input type="text" id="vername" placeholder="Name this layout" maxlength="60" style="flex:1 1 140px">
+          <button class="btn primary" type="submit">Save</button>
+        </form>
+        <div class="versions" id="versions"></div>
+      </section>
+    </aside>
+  </main>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+'use strict';
+
+// ---------- Plan data (all units cm; x across the house, y from rear/garden (top) to front/street (bottom)) ----------
+const R = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+const FLOORS = [
+  {
+    id: 'ground', name: 'Ground', area: '56.8 m²',
+    rooms: [
+      { name: 'Kitchen / Breakfast', dims: '5.30 × 4.60 m max', poly: [[225,0],[460,0],[460,530],[0,530],[0,191],[225,191]], label: [215, 360] },
+      { name: 'Dining Room', dims: '3.83 × 3.07 m', poly: R(0, 540, 307, 383) },
+      { name: 'Living Room', dims: '4.15 × 3.84 m', poly: [[0,933],[384,933],[384,1278],[276,1278],[276,1348],[64,1348],[64,1278],[0,1278]], label: [192, 1120] },
+      { name: 'Hall', poly: [[317,540],[382,540],[382,860],[460,860],[460,1278],[394,1278],[394,933],[317,933]], label: [427, 1080] },
+      { name: 'WC', dims: '1.51 × 0.68', poly: R(392, 540, 68, 151) },
+      { name: 'Stairs', stairs: true, poly: R(392, 701, 68, 149) },
+    ],
+    fixtures: [
+      { name: 'Kitchen units', kind: 'units', r: [400, 200, 60, 320] },
+      { name: 'Sink run', kind: 'units', r: [55, 191, 105, 60] },
+      { name: 'Chimney breast', kind: 'chimney', r: [0, 648, 35, 123] },
+      { name: 'Chimney breast', kind: 'chimney', r: [0, 1008, 35, 128] },
+    ],
+    windows: [[262,0,366,0],[55,191,154,191],[64,1348,276,1348],[64,1278,64,1348],[276,1278,276,1348]],
+  },
+  {
+    id: 'first', name: 'First', area: '44.6 m²',
+    rooms: [
+      { name: 'Bathroom', dims: '2.95 × 2.38 m', poly: R(192, 0, 270, 295) },
+      { name: 'Bedroom 3', dims: '3.81 × 3.20 m', poly: R(0, 316, 320, 381) },
+      { name: 'Landing', poly: R(330, 305, 132, 402), label: [396, 655] },
+      { name: 'Stairs', stairs: true, poly: R(340, 316, 122, 284) },
+      { name: 'Bedroom 2', dims: '3.45 × 4.48 m', poly: R(0, 717, 462, 345) },
+    ],
+    fixtures: [
+      { name: 'Chimney breast', kind: 'chimney', r: [430, 75, 32, 135] },
+      { name: 'Chimney breast / cupboard', kind: 'chimney', r: [0, 336, 41, 235] },
+      { name: 'Chimney breast', kind: 'chimney', r: [0, 807, 30, 141] },
+    ],
+    windows: [[264,0,382,0],[71,316,156,316],[71,1062,165,1062],[292,1062,392,1062]],
+  },
+  {
+    id: 'second', name: 'Second', area: '22.5 m²',
+    rooms: [
+      { name: 'En-suite', dims: '2.52 × 1.02 m', poly: R(0, 0, 102, 252) },
+      { name: 'Bedroom 1', dims: '4.78 × 3.72 m max', poly: [[112,0],[372,0],[372,478],[0,478],[0,262],[112,262]], label: [205, 330] },
+      { name: 'Stairs', stairs: true, poly: R(382, 0, 98, 252) },
+      { name: 'Walk-in wardrobe', dims: '2.16 × 0.98', poly: R(382, 262, 98, 216) },
+    ],
+    fixtures: [],
+    windows: [[20,0,90,0],[150,0,300,0],[67,478,143,478],[240,478,310,478]],
+    note: 'Juliet balcony at the rear. Part of this floor has restricted head height.',
+  },
+];
+const BUILTINS = [
+  { id: 'builtin-double', name: 'Double bed', w: 135, d: 190, color: 0, kind: 'bed', builtin: true },
+  { id: 'builtin-king', name: 'King-size bed', w: 150, d: 200, color: 1, kind: 'bed', builtin: true },
+  { id: 'builtin-desk', name: 'Desk', w: 120, d: 60, color: 4, kind: 'desk', builtin: true },
+  { id: 'builtin-sofa', name: 'Sofa', w: 200, d: 85, color: 3, kind: 'sofa', builtin: true },
+];
+const NCOLORS = 8;
+
+// ---------- Helpers ----------
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const num = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+const fp = (it) => { const r = ((it.rot || 0) % 180) !== 0; return { x: it.x, y: it.y, w: r ? it.d : it.w, h: r ? it.w : it.d }; };
+function bbox(poly) { const xs = poly.map(p => p[0]), ys = poly.map(p => p[1]); return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }; }
+function inPoly(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+let toastTimer = 0;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3800); }
+function safeLS(fn, fallback) { try { return fn(); } catch { return fallback; } }
+
+// Wall/fixture segments per floor, for snapping and clearance
+const segCache = {};
+function floorSegs(fid) {
+  if (segCache[fid]) return segCache[fid];
+  const f = FLOORS.find(f => f.id === fid);
+  const v = [], h = [];
+  const addPoly = (poly) => {
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      if (a[0] === b[0]) v.push({ c: a[0], a: Math.min(a[1], b[1]), b: Math.max(a[1], b[1]) });
+      else if (a[1] === b[1]) h.push({ c: a[1], a: Math.min(a[0], b[0]), b: Math.max(a[0], b[0]) });
+    }
+  };
+  f.rooms.forEach(r => { if (!r.stairs) addPoly(r.poly); else addPoly(r.poly); });
+  f.fixtures.forEach(x => addPoly(R(...x.r)));
+  return (segCache[fid] = { v, h });
+}
+function itemSegs(fid, exceptId) {
+  const v = [], h = [];
+  for (const it of Object.values(state.items)) {
+    if (it.floor !== fid || it.id === exceptId) continue;
+    const r = fp(it);
+    v.push({ c: r.x, a: r.y, b: r.y + r.h }, { c: r.x + r.w, a: r.y, b: r.y + r.h });
+    h.push({ c: r.y, a: r.x, b: r.x + r.w }, { c: r.y + r.h, a: r.x, b: r.x + r.w });
+  }
+  return { v, h };
+}
+
+// ---------- State ----------
+const state = {
+  floor: safeLS(() => localStorage.getItem('hp-floor'), null) || 'ground',
+  items: {}, catalog: {}, versions: {},
+  selected: null, grid: 5, edgeSnap: true, zoom: 1,
+  drag: null, readOnly: false, newColor: 2,
+  confirm: null, // {kind, id}
+};
+if (!FLOORS.some(f => f.id === state.floor)) state.floor = 'ground';
+
+// ---------- Storage: shared db when hosted on Claude, browser storage elsewhere ----------
+const Store = {
+  mode: 'local', db: null, user: null, watchers: {}, local: null,
+  async init() {
+    try {
+      if (window.claude && typeof window.claude.use === 'function') {
+        const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+        this.db = db; this.user = user;
+      }
+    } catch { this.db = null; }
+    this.mode = this.db ? 'shared' : 'local';
+    if (this.mode === 'local') {
+      this.local = safeLS(() => JSON.parse(localStorage.getItem('hp-data') || 'null'), null) || { placed: {}, catalog: {}, versions: {} };
+    }
+  },
+  watch(coll, cb, onFirst) {
+    if (this.mode === 'local') {
+      this.watchers[coll] = cb;
+      queueMicrotask(() => { cb({ ...this.local[coll] }); onFirst && onFirst(); });
+      return;
+    }
+    let first = true;
+    this.db.collection(coll).onSnapshot((snap) => {
+      const out = {};
+      snap.docs.forEach(d => { if (d.exists) out[d.id] = { ...d.data(), id: d.id }; });
+      cb(out);
+      if (first && !snap.metadata.fromCache) { first = false; onFirst && onFirst(); }
+    }, (e) => { onFirst && onFirst(e); setSync('error'); });
+  },
+  persistLocal() {
+    safeLS(() => localStorage.setItem('hp-data', JSON.stringify(this.local)));
+  },
+  set(coll, id, data) {
+    const body = { ...data }; delete body.id;
+    if (this.mode === 'local') {
+      this.local[coll][id] = { ...body, id };
+      this.persistLocal();
+      const cb = this.watchers[coll]; cb && cb({ ...this.local[coll] });
+      return Promise.resolve();
+    }
+    return queueWrite(coll + '/' + id, () => this.db.doc(coll + '/' + id).set(body));
+  },
+  del(coll, id) {
+    if (this.mode === 'local') {
+      delete this.local[coll][id];
+      this.persistLocal();
+      const cb = this.watchers[coll]; cb && cb({ ...this.local[coll] });
+      return Promise.resolve();
+    }
+    return queueWrite(coll + '/' + id, () => this.db.doc(coll + '/' + id).delete());
+  },
+};
+// One write at a time per document; only the latest queued write runs.
+const pending = {};
+function queueWrite(path, fn) {
+  const p = pending[path] || (pending[path] = { running: false, next: null, waiters: [] });
+  p.next = fn;
+  return new Promise((resolve) => { p.waiters.push(resolve); if (!p.running) pump(path); });
+}
+async function pump(path) {
+  const p = pending[path]; p.running = true;
+  while (p.next) {
+    const fn = p.next; p.next = null;
+    const waiters = p.waiters.splice(0);
+    try { await fn(); }
+    catch (e) {
+      if (e && e.code === 'unavailable') {
+        await new Promise(r => setTimeout(r, 600 + Math.random() * 800));
+        try { await fn(); } catch (e2) { writeError(e2); }
+      } else writeError(e);
+    }
+    waiters.forEach(w => w());
+  }
+  p.running = false;
+}
+function writeError(e) {
+  const code = e && e.code;
+  if (code === 'invalid_argument' || code === 'not_granted') {
+    state.readOnly = true; renderAll();
+    toast('You can view this plan but not change it. Ask the owner for edit access.');
+  } else if (code === 'quota_exceeded') toast('Storage is full. Delete some old saved versions and try again.');
+  else if (code === 'resource_exhausted') toast('Too many changes at once. Wait a moment and try again.');
+  else toast('A change didn’t save. Check your connection and try again.');
+}
+
+function setSync(kind) {
+  const dot = $('#syncdot'), txt = $('#synctext');
+  dot.className = 'dot';
+  if (kind === 'live') { dot.classList.add('live'); txt.textContent = state.readOnly ? 'Shared · view only' : 'Shared · changes sync live'; }
+  else if (kind === 'local') { dot.classList.add('local'); txt.textContent = 'Saved in this browser only'; }
+  else if (kind === 'slow') { txt.textContent = 'Can’t reach the shared layout yet…'; }
+  else if (kind === 'error') { txt.textContent = 'Lost connection to the shared layout'; }
+  else txt.textContent = 'Connecting…';
+}
+
+// ---------- Rendering: plan ----------
+const svg = $('#svg');
+function curFloor() { return FLOORS.find(f => f.id === state.floor); }
+function renderTabs() {
+  const counts = {};
+  Object.values(state.items).forEach(it => { counts[it.floor] = (counts[it.floor] || 0) + 1; });
+  $('#tabs').innerHTML = FLOORS.map(f => `<button class="tab" role="tab" id="tab-${f.id}" data-floor="${f.id}" aria-selected="${f.id === state.floor}">${f.name} floor <small>${counts[f.id] ? counts[f.id] + ' item' + (counts[f.id] > 1 ? 's' : '') : f.area}</small></button>`).join('');
+}
+function renderPlan() {
+  const f = curFloor();
+  const all = f.rooms.flatMap(r => r.poly);
+  const bb = bbox(all);
+  const pad = 70;
+  svg.setAttribute('viewBox', `${bb.x - pad} ${bb.y - pad} ${bb.w + pad * 2} ${bb.h + pad * 2}`);
+  const pts = (poly) => poly.map(p => p.join(',')).join(' ');
+  let s = '';
+  f.rooms.forEach(r => { s += `<polygon class="wallpoly" points="${pts(r.poly)}"/>`; });
+  f.windows.forEach(([x1, y1, x2, y2]) => {
+    s += `<line class="window" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+    const dx = x1 === x2 ? 12 : 0, dy = y1 === y2 ? 12 : 0;
+    s += `<line class="window2" x1="${x1 - dx / 2}" y1="${y1 - dy / 2}" x2="${x2 - dx / 2}" y2="${y2 - dy / 2}"/><line class="window2" x1="${x1 + dx / 2}" y1="${y1 + dy / 2}" x2="${x2 + dx / 2}" y2="${y2 + dy / 2}"/>`;
+  });
+  f.rooms.forEach(r => {
+    if (r.stairs) {
+      s += `<polygon class="stairpoly" points="${pts(r.poly)}"/>`;
+      const b = bbox(r.poly);
+      if (b.h >= b.w) for (let y = b.y + 24; y < b.y + b.h; y += 24) s += `<line class="tread" x1="${b.x}" y1="${y}" x2="${b.x + b.w}" y2="${y}"/>`;
+      else for (let x = b.x + 24; x < b.x + b.w; x += 24) s += `<line class="tread" x1="${x}" y1="${b.y}" x2="${x}" y2="${b.y + b.h}"/>`;
+    } else {
+      s += `<polygon class="roompoly" points="${pts(r.poly)}"/><polygon class="gridpoly" points="${pts(r.poly)}"/>`;
+    }
+  });
+  f.fixtures.forEach(x => {
+    const [fx, fy, fw, fh] = x.r;
+    s += `<rect class="${x.kind === 'chimney' ? 'chimney' : 'fixture'}" x="${fx}" y="${fy}" width="${fw}" height="${fh}"><title>${esc(x.name)}</title></rect>`;
+  });
+  f.rooms.forEach(r => {
+    const b = bbox(r.poly);
+    const [lx, ly] = r.label || [b.x + b.w / 2, b.y + b.h / 2];
+    const fs = clamp(Math.min(20, (b.w * 0.85) / (r.name.length * 0.55)), 7, 20);
+    s += `<text class="roomname" x="${lx}" y="${ly}" font-size="${fs.toFixed(1)}">${esc(r.name)}</text>`;
+    if (r.dims) { const dfs = Math.min(fs * 0.7, (b.w * 0.9) / (r.dims.length * 0.62)); s += `<text class="roomdims" x="${lx}" y="${ly + fs * 0.95}" font-size="${dfs.toFixed(1)}">${esc(r.dims)}</text>`; }
+  });
+  s += `<text class="orient" x="${bb.x + bb.w / 2}" y="${bb.y - 34}">REAR</text>`;
+  s += `<text class="orient" x="${bb.x + bb.w / 2}" y="${bb.y + bb.h + 46}">FRONT</text>`;
+  $('#layer-plan').innerHTML = s;
+}
+
+// ---------- Rendering: items ----------
+function itemCheck(it) {
+  const f = curFloor();
+  const r = fp(it);
+  const inset = 0.5;
+  const corners = [[r.x + inset, r.y + inset], [r.x + r.w - inset, r.y + inset], [r.x + r.w - inset, r.y + r.h - inset], [r.x + inset, r.y + r.h - inset], [r.x + r.w / 2, r.y + r.h / 2]];
+  const inside = f.rooms.some(room => corners.every(([x, y]) => inPoly(x, y, room.poly)));
+  const hits = (o) => r.x < o.x + o.w - 0.5 && r.x + r.w > o.x + 0.5 && r.y < o.y + o.h - 0.5 && r.y + r.h > o.y + 0.5;
+  let clash = f.fixtures.some(x => hits({ x: x.r[0], y: x.r[1], w: x.r[2], h: x.r[3] }));
+  if (!clash) clash = Object.values(state.items).some(o => o.id !== it.id && o.floor === it.floor && hits(fp(o)));
+  return { inside, clash };
+}
+function view(it) { return state.drag && state.drag.id === it.id ? { ...it, x: state.drag.x, y: state.drag.y } : it; }
+function itemSVG(it0) {
+  const it = view(it0);
+  const r = fp(it);
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  const w = it.w, d = it.d;
+  const chk = itemCheck(it);
+  const cls = ['item'];
+  if (state.selected === it.id) cls.push('sel');
+  if (chk.clash) cls.push('clash'); else if (!chk.inside) cls.push('warn');
+  if (state.drag && state.drag.id === it.id) cls.push('dragging');
+  const col = `var(--f${(it.color || 0) % NCOLORS})`;
+  let g = `<g class="${cls.join(' ')}" data-id="${esc(it.id)}"><g transform="translate(${cx} ${cy}) rotate(${it.rot || 0})">`;
+  g += `<rect class="body" x="${-w / 2}" y="${-d / 2}" width="${w}" height="${d}" rx="3" style="fill:${col}"/>`;
+  if (it.kind === 'bed') {
+    const hb = Math.min(8, d * 0.06);
+    g += `<rect class="detail" x="${-w / 2}" y="${-d / 2}" width="${w}" height="${hb}" style="fill: var(--item-stroke); opacity: .55"/>`;
+    const pw = (w - 18) / 2, ph = Math.min(32, d * 0.17);
+    g += `<rect class="detail" x="${-w / 2 + 6}" y="${-d / 2 + hb + 6}" width="${pw}" height="${ph}" rx="6"/>`;
+    g += `<rect class="detail" x="${w / 2 - 6 - pw}" y="${-d / 2 + hb + 6}" width="${pw}" height="${ph}" rx="6"/>`;
+    const fy = -d / 2 + hb + ph + 22;
+    g += `<path class="fold" d="M${-w / 2} ${fy} L${w / 2} ${fy}"/>`;
+  } else if (it.kind === 'sofa') {
+    const back = Math.min(20, d * 0.25), arm = Math.min(18, w * 0.1);
+    g += `<rect class="detail" x="${-w / 2}" y="${-d / 2}" width="${w}" height="${back}" rx="3" style="fill: var(--item-stroke); opacity: .35"/>`;
+    g += `<rect class="detail" x="${-w / 2}" y="${-d / 2}" width="${arm}" height="${d}" rx="3" style="fill: var(--item-stroke); opacity: .35"/>`;
+    g += `<rect class="detail" x="${w / 2 - arm}" y="${-d / 2}" width="${arm}" height="${d}" rx="3" style="fill: var(--item-stroke); opacity: .35"/>`;
+    g += `<path class="fold" d="M0 ${-d / 2 + back} L0 ${d / 2 - 4}"/>`;
+  } else if (it.kind === 'desk') {
+    g += `<rect class="fold" x="${-w / 2 + 4}" y="${-d / 2 + 4}" width="${w - 8}" height="${d - 8}" rx="2"/>`;
+  }
+  g += `</g>`;
+  const fs = clamp(Math.min(r.w, r.h) / 6, 8, 16);
+  const nameFs = clamp(Math.min(fs, (r.w * 0.9) / (Math.max(4, it.name.length) * 0.58)), 6, 16);
+  const ty = it.kind === 'bed' && !((it.rot || 0) % 180) ? cy + r.h * 0.12 : cy;
+  g += `<text class="label" x="${cx}" y="${ty - 2}" font-size="${nameFs.toFixed(1)}">${esc(it.name)}</text>`;
+  g += `<text class="size" x="${cx}" y="${ty + fs * 0.95}" font-size="${(fs * 0.75).toFixed(1)}">${Math.round(it.w)} × ${Math.round(it.d)}</text>`;
+  g += `</g>`;
+  return g;
+}
+function renderItems() {
+  const items = Object.values(state.items).filter(it => it.floor === state.floor);
+  // selected / dragged item last so it sits on top
+  items.sort((a, b) => (a.id === state.selected) - (b.id === state.selected) || (a.z || 0) - (b.z || 0));
+  $('#layer-items').innerHTML = items.map(itemSVG).join('');
+  renderOverlay();
+}
+
+function clearances(it) {
+  const r = fp(it);
+  const segs = floorSegs(it.floor);
+  const ov = (s, a, b) => s.a < b - 0.5 && s.b > a + 0.5;
+  let L = null, Rr = null, T = null, B = null;
+  for (const s of segs.v) {
+    if (!ov(s, r.y, r.y + r.h)) continue;
+    if (s.c <= r.x + 0.5 && (L === null || s.c > L)) L = s.c;
+    if (s.c >= r.x + r.w - 0.5 && (Rr === null || s.c < Rr)) Rr = s.c;
+  }
+  for (const s of segs.h) {
+    if (!ov(s, r.x, r.x + r.w)) continue;
+    if (s.c <= r.y + 0.5 && (T === null || s.c > T)) T = s.c;
+    if (s.c >= r.y + r.h - 0.5 && (B === null || s.c < B)) B = s.c;
+  }
+  return {
+    left: L === null ? null : r.x - L, right: Rr === null ? null : Rr - (r.x + r.w),
+    top: T === null ? null : r.y - T, bottom: B === null ? null : B - (r.y + r.h), L, R: Rr, T, B, r,
+  };
+}
+function roomAt(fid, x, y) {
+  const f = FLOORS.find(f => f.id === fid);
+  return f.rooms.find(r => inPoly(x, y, r.poly));
+}
+function renderOverlay() {
+  let s = '';
+  const id = state.drag ? state.drag.id : state.selected;
+  const it0 = id && state.items[id];
+  if (state.drag && state.drag.guides) {
+    const bb = bbox(curFloor().rooms.flatMap(r => r.poly));
+    state.drag.guides.x.forEach(x => { s += `<line class="guide" x1="${x}" y1="${bb.y - 40}" x2="${x}" y2="${bb.y + bb.h + 40}"/>`; });
+    state.drag.guides.y.forEach(y => { s += `<line class="guide" x1="${bb.x - 40}" y1="${y}" x2="${bb.x + bb.w + 40}" y2="${y}"/>`; });
+  }
+  const ro = $('#readout');
+  if (it0 && it0.floor === state.floor) {
+    const it = view(it0);
+    const c = clearances(it);
+    const r = c.r, cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    const dimLine = (x1, y1, x2, y2, val, tx, ty) => {
+      if (val === null || val < 1 || val > 800) return '';
+      return `<line class="dim" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/><text class="dimtxt" x="${tx}" y="${ty}">${Math.round(val)}</text>`;
+    };
+    s += dimLine(c.L, cy, r.x, cy, c.left, (c.L + r.x) / 2, cy - 5);
+    s += dimLine(r.x + r.w, cy, c.R, cy, c.right, (r.x + r.w + c.R) / 2, cy - 5);
+    s += dimLine(cx, c.T, cx, r.y, c.top, cx + 18, (c.T + r.y) / 2 + 4);
+    s += dimLine(cx, r.y + r.h, cx, c.B, c.bottom, cx + 18, (r.y + r.h + c.B) / 2 + 4);
+    const room = roomAt(it.floor, cx, cy);
+    const fmt = (v) => v === null ? '–' : Math.round(v) + ' cm';
+    ro.textContent = `${it.name} · ${Math.round(it.w)}×${Math.round(it.d)} cm${room ? ' · ' + room.name : ''} · clearance ← ${fmt(c.left)}  → ${fmt(c.right)}  ↑ ${fmt(c.top)}  ↓ ${fmt(c.bottom)}`;
+  } else {
+    ro.textContent = curFloor().note || 'Select a piece of furniture to see its clearance to the walls.';
+  }
+  $('#layer-over').innerHTML = s;
+}
+
+// ---------- Library ----------
+function libItems() {
+  const custom = Object.values(state.catalog).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  return [...BUILTINS, ...custom];
+}
+function miniIcon(it) {
+  const m = Math.max(it.w, it.d);
+  const w = (it.w / m) * 34, h = (it.d / m) * 34;
+  return `<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect x="${20 - w / 2}" y="${20 - h / 2}" width="${w}" height="${h}" rx="2" style="fill: var(--f${(it.color || 0) % NCOLORS}); stroke: var(--item-stroke); stroke-width: 1"/></svg>`;
+}
+function renderLib() {
+  $('#lib').innerHTML = libItems().map(it => {
+    const confirming = state.confirm && state.confirm.kind === 'cat' && state.confirm.id === it.id;
+    return `<div class="card" data-lib="${esc(it.id)}" role="button" tabindex="0" aria-label="Add ${esc(it.name)}">
+      <div class="icon">${miniIcon(it)}</div>
+      <div class="meta"><div class="name">${esc(it.name)}</div><div class="dims">${Math.round(it.w)} × ${Math.round(it.d)} cm</div></div>
+      ${it.builtin || state.readOnly ? '' : `<button class="x${confirming ? ' confirm' : ''}" data-delcat="${esc(it.id)}" title="Remove from library">${confirming ? 'Remove?' : '✕'}</button>`}
+    </div>`;
+  }).join('');
+}
+function renderNewColors() {
+  $('#nf-colors').innerHTML = Array.from({ length: NCOLORS }, (_, i) => `<button type="button" class="sw" data-nc="${i}" aria-label="Colour ${i + 1}" aria-pressed="${state.newColor === i}" style="background: var(--f${i})"></button>`).join('');
+}
+
+// ---------- Inspector ----------
+function renderInspector() {
+  const el = $('#insp');
+  const it = state.selected && state.items[state.selected];
+  if (!it) {
+    el.innerHTML = `<div class="empty">Nothing selected. Click a piece of furniture on the plan to resize, rotate or recolour it.<br><br>Keys: <b>R</b> rotate · arrows nudge by the grid step (Shift: 1 cm) · <b>Delete</b> removes.</div>`;
+    return;
+  }
+  const chk = itemCheck(it);
+  const status = chk.clash ? '<div class="status clash">Overlaps another item or a fixture.</div>'
+    : !chk.inside ? '<div class="status warn">Crosses a wall or sits outside a room.</div>'
+    : '<div class="status">Fits within the room.</div>';
+  const ro = state.readOnly ? 'disabled' : '';
+  const confirming = state.confirm && state.confirm.kind === 'item' && state.confirm.id === it.id;
+  el.innerHTML = `<div class="insp">
+    <label class="f">Name<input type="text" id="in-name" value="${esc(it.name)}" maxlength="40" ${ro}></label>
+    <div class="grid2">
+      <label class="f">Width (cm)<input type="number" id="in-w" value="${Math.round(it.w)}" min="5" max="1000" ${ro}></label>
+      <label class="f">Depth (cm)<input type="number" id="in-d" value="${Math.round(it.d)}" min="5" max="1000" ${ro}></label>
+    </div>
+    <div class="swatches">${Array.from({ length: NCOLORS }, (_, i) => `<button type="button" class="sw" data-ic="${i}" aria-label="Colour ${i + 1}" aria-pressed="${(it.color || 0) === i}" style="background: var(--f${i})" ${ro}></button>`).join('')}</div>
+    ${status}
+    <div class="row">
+      <button class="btn" id="in-rot" ${ro}>Rotate 90°</button>
+      <button class="btn" id="in-dup" ${ro}>Duplicate</button>
+      <button class="btn" id="in-save" ${ro} title="Add this size to the furniture library">Save to library</button>
+    </div>
+    <div class="row">
+      ${confirming
+        ? `<button class="btn danger solid" id="in-del-yes">Delete ${esc(it.name)}</button><button class="btn" id="in-del-no">Cancel</button>`
+        : `<button class="btn danger" id="in-del" ${ro}>Delete</button>`}
+    </div>
+  </div>`;
+}
+
+// ---------- Versions ----------
+let profileNames = {};
+async function resolveNames(ids) {
+  const u = Store.user;
+  if (!u || !ids.length || typeof u.profiles !== 'function') return;
+  try {
+    const ps = await u.profiles(ids);
+    let changed = false;
+    for (const id of ids) { const n = (ps && ps[id] && ps[id].name) || ''; if (n && profileNames[id] !== n) { profileNames[id] = n; changed = true; } }
+    if (changed) renderVersions(true);
+  } catch { /* names are optional */ }
+}
+function renderVersions(skipNames) {
+  const list = Object.values(state.versions).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const el = $('#versions');
+  if (!list.length) {
+    el.innerHTML = `<div class="empty">No saved versions yet. Arrange the furniture, then save the layout under a name (for example “Bed under the window”). Loading a version later replaces the current layout on all three floors.</div>`;
+    return;
+  }
+  el.innerHTML = list.map(v => {
+    const c = state.confirm && state.confirm.id === v.id ? state.confirm.kind : null;
+    const when = safeLS(() => new Date(v.createdAt).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }), '');
+    const by = v.by && profileNames[v.by] ? ' · ' + profileNames[v.by] : '';
+    const n = Array.isArray(v.items) ? v.items.length : 0;
+    let actions;
+    if (c === 'load') actions = `<button class="btn primary" data-vload-yes="${esc(v.id)}">Replace current layout</button><button class="btn" data-cancel="1">Cancel</button>`;
+    else if (c === 'vdel') actions = `<button class="btn danger solid" data-vdel-yes="${esc(v.id)}">Delete version</button><button class="btn" data-cancel="1">Cancel</button>`;
+    else actions = `<button class="btn" data-vload="${esc(v.id)}" ${state.readOnly ? 'disabled' : ''}>Load</button><button class="btn danger" data-vdel="${esc(v.id)}" ${state.readOnly ? 'disabled' : ''}>Delete</button>`;
+    return `<div class="ver"><div class="vt">${esc(v.name)}</div><div class="vm">${esc(when)} · ${n} item${n === 1 ? '' : 's'}${esc(by)}</div><div class="row">${actions}</div></div>`;
+  }).join('');
+  if (!skipNames) resolveNames([...new Set(list.map(v => v.by).filter(Boolean))]);
+}
+
+function renderAll() {
+  renderTabs(); renderPlan(); renderItems(); renderLib(); renderInspector(); renderVersions(true);
+  $('#saveform button').disabled = state.readOnly;
+  $('#newform button[type=submit]').disabled = state.readOnly;
+}
+
+// ---------- Mutations ----------
+function cleanItem(it) {
+  return { floor: it.floor, name: String(it.name).slice(0, 40), w: Math.round(it.w), d: Math.round(it.d), x: Math.round(it.x), y: Math.round(it.y), rot: (it.rot || 0) % 360, color: (it.color || 0) % NCOLORS, kind: it.kind || '', z: it.z || Date.now() };
+}
+function saveItem(it) {
+  if (state.readOnly) return;
+  const body = cleanItem(it);
+  state.items[it.id] = { ...body, id: it.id };
+  Store.set('placed', it.id, body);
+}
+function deleteItem(id) {
+  if (state.readOnly) return;
+  delete state.items[id];
+  if (state.selected === id) state.selected = null;
+  Store.del('placed', id);
+}
+function viewCenter() {
+  const c = $('#canvas').getBoundingClientRect();
+  return clientToSvg(c.left + c.width / 2, c.top + c.height / 2);
+}
+function placeNew(src, at) {
+  if (state.readOnly) { toast('You can view this plan but not change it.'); return; }
+  const p = at || viewCenter();
+  const g = state.grid;
+  const it = { id: uid('i'), floor: state.floor, name: src.name, w: src.w, d: src.d, rot: 0, color: src.color || 0, kind: src.kind || '' };
+  it.x = Math.round((p.x - it.w / 2) / g) * g;
+  it.y = Math.round((p.y - it.d / 2) / g) * g;
+  it.z = Date.now();
+  state.selected = it.id;
+  saveItem(it);
+  renderTabs(); renderItems(); renderInspector();
+}
+function rotateItem(it) {
+  const r = fp(it);
+  const n = { ...it, rot: ((it.rot || 0) + 90) % 360 };
+  const r2 = fp(n);
+  n.x = Math.round(r.x + (r.w - r2.w) / 2);
+  n.y = Math.round(r.y + (r.h - r2.h) / 2);
+  saveItem(n);
+}
+
+// ---------- Coordinates & dragging ----------
+function clientToSvg(cx, cy) {
+  const m = svg.getScreenCTM();
+  if (!m) return { x: 0, y: 0 };
+  const p = new DOMPoint(cx, cy).matrixTransform(m.inverse());
+  return { x: p.x, y: p.y };
+}
+function pxToCm(px) { const m = svg.getScreenCTM(); return m ? px / m.a : px; }
+
+function snapPos(it, rawX, rawY) {
+  const r = fp({ ...it, x: rawX, y: rawY });
+  const g = state.grid;
+  const thr = pxToCm(9);
+  const guides = { x: [], y: [] };
+  let x = Math.round(rawX / g) * g, y = Math.round(rawY / g) * g;
+  if (state.edgeSnap) {
+    const ws = floorSegs(it.floor), is = itemSegs(it.floor, it.id);
+    const near = 60;
+    const pick = (segs, pos, size, lo, hi) => {
+      let best = null;
+      for (const s of segs) {
+        if (s.b < lo - near || s.a > hi + near) continue;
+        for (const off of [0, size]) {
+          const dd = Math.abs(pos + off - s.c);
+          if (dd <= thr && (!best || dd < best.d)) best = { d: dd, v: s.c - off, c: s.c };
+        }
+      }
+      return best;
+    };
+    const bx = pick([...ws.v, ...is.v], rawX, r.w, rawY, rawY + r.h);
+    if (bx) { x = bx.v; guides.x.push(bx.c); }
+    const by = pick([...ws.h, ...is.h], rawY, r.h, rawX, rawX + r.w);
+    if (by) { y = by.v; guides.y.push(by.c); }
+  }
+  return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, guides };
+}
+
+svg.addEventListener('pointerdown', (e) => {
+  const g = e.target.closest('.item');
+  if (!g) {
+    if (state.selected) { state.selected = null; state.confirm = null; renderItems(); renderInspector(); }
+    return;
+  }
+  const id = g.getAttribute('data-id');
+  const it = state.items[id];
+  if (!it) return;
+  e.preventDefault();
+  state.selected = id;
+  if (state.confirm && state.confirm.kind === 'item') state.confirm = null;
+  if (state.readOnly) { renderItems(); renderInspector(); return; }
+  const p = clientToSvg(e.clientX, e.clientY);
+  state.drag = { id, ox: p.x - it.x, oy: p.y - it.y, x: it.x, y: it.y, sx: e.clientX, sy: e.clientY, moved: false, guides: null, pointerId: e.pointerId };
+  try { svg.setPointerCapture(e.pointerId); } catch {}
+  renderItems(); renderInspector();
+});
+svg.addEventListener('pointermove', (e) => {
+  const d = state.drag;
+  if (!d || e.pointerId !== d.pointerId) return;
+  if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 3) return;
+  d.moved = true;
+  const p = clientToSvg(e.clientX, e.clientY);
+  const it = state.items[d.id];
+  if (!it) { state.drag = null; return; }
+  const s = snapPos(it, p.x - d.ox, p.y - d.oy);
+  d.x = s.x; d.y = s.y; d.guides = s.guides;
+  renderItems();
+});
+function endDrag(e) {
+  const d = state.drag;
+  if (!d || (e && e.pointerId !== d.pointerId)) return;
+  state.drag = null;
+  const it = state.items[d.id];
+  if (it && d.moved && (it.x !== d.x || it.y !== d.y)) saveItem({ ...it, x: d.x, y: d.y });
+  renderItems(); renderInspector();
+}
+svg.addEventListener('pointerup', endDrag);
+svg.addEventListener('pointercancel', endDrag);
+
+// Library: drag a card onto the plan, or tap it
+let libDrag = null;
+$('#lib').addEventListener('pointerdown', (e) => {
+  if (e.target.closest('[data-delcat]')) return;
+  const card = e.target.closest('[data-lib]');
+  if (!card) return;
+  e.preventDefault();
+  libDrag = { id: card.getAttribute('data-lib'), sx: e.clientX, sy: e.clientY, ghost: null, el: card, pointerId: e.pointerId };
+  try { card.setPointerCapture(e.pointerId); } catch {}
+});
+$('#lib').addEventListener('pointermove', (e) => {
+  if (!libDrag || e.pointerId !== libDrag.pointerId) return;
+  if (!libDrag.ghost && Math.hypot(e.clientX - libDrag.sx, e.clientY - libDrag.sy) > 6) {
+    const src = libItems().find(x => x.id === libDrag.id);
+    const gh = document.createElement('div');
+    gh.className = 'ghost'; gh.textContent = src ? src.name : '';
+    document.body.appendChild(gh); libDrag.ghost = gh;
+  }
+  if (libDrag.ghost) { libDrag.ghost.style.left = e.clientX + 'px'; libDrag.ghost.style.top = e.clientY + 'px'; }
+});
+function endLibDrag(e, cancelled) {
+  if (!libDrag || e.pointerId !== libDrag.pointerId) return;
+  const d = libDrag; libDrag = null;
+  if (d.ghost) d.ghost.remove();
+  if (cancelled) return;
+  const src = libItems().find(x => x.id === d.id);
+  if (!src) return;
+  if (!d.ghost) { placeNew(src); return; }
+  const c = $('#canvas').getBoundingClientRect();
+  if (e.clientX >= c.left && e.clientX <= c.right && e.clientY >= c.top && e.clientY <= c.bottom) placeNew(src, clientToSvg(e.clientX, e.clientY));
+}
+$('#lib').addEventListener('pointerup', (e) => endLibDrag(e, false));
+$('#lib').addEventListener('pointercancel', (e) => endLibDrag(e, true));
+$('#lib').addEventListener('keydown', (e) => {
+  const card = e.target.closest('[data-lib]');
+  if (card && (e.key === 'Enter' || e.key === ' ') && e.target === card) {
+    e.preventDefault();
+    const src = libItems().find(x => x.id === card.getAttribute('data-lib'));
+    if (src) placeNew(src);
+  }
+});
+$('#lib').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-delcat]');
+  if (!b) return;
+  const id = b.getAttribute('data-delcat');
+  if (state.confirm && state.confirm.kind === 'cat' && state.confirm.id === id) {
+    state.confirm = null; delete state.catalog[id]; Store.del('catalog', id);
+  } else state.confirm = { kind: 'cat', id };
+  renderLib();
+});
+
+// New item form
+$('#nf-colors').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-nc]'); if (!b) return;
+  state.newColor = Number(b.getAttribute('data-nc')); renderNewColors();
+});
+$('#newform').addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (state.readOnly) return;
+  const name = $('#nf-name').value.trim();
+  const w = clamp(num($('#nf-w').value, 0), 5, 1000), d = clamp(num($('#nf-d').value, 0), 5, 1000);
+  if (!name || !w || !d) return;
+  const cat = { name, w: Math.round(w), d: Math.round(d), color: state.newColor, kind: /\bbed\b/i.test(name) && !/sofa/i.test(name) ? 'bed' : '' };
+  const id = uid('c');
+  state.catalog[id] = { ...cat, id };
+  Store.set('catalog', id, cat);
+  placeNew(cat);
+  $('#nf-name').value = ''; $('#nf-w').value = ''; $('#nf-d').value = '';
+  renderLib();
+  toast(`Added ${name} to the library and the ${curFloor().name.toLowerCase()} floor.`);
+});
+
+// Inspector events
+$('#insp').addEventListener('change', (e) => {
+  const it = state.items[state.selected]; if (!it) return;
+  if (e.target.id === 'in-name') { const v = e.target.value.trim(); if (v) saveItem({ ...it, name: v }); }
+  if (e.target.id === 'in-w' || e.target.id === 'in-d') {
+    const key = e.target.id === 'in-w' ? 'w' : 'd';
+    const v = clamp(Math.round(num(e.target.value, it[key])), 5, 1000);
+    // keep the centre fixed when resizing
+    const before = fp(it);
+    const n = { ...it, [key]: v };
+    const after = fp(n);
+    n.x = Math.round(before.x + (before.w - after.w) / 2); n.y = Math.round(before.y + (before.h - after.h) / 2);
+    saveItem(n);
+  }
+  renderItems(); renderInspector();
+});
+$('#insp').addEventListener('click', (e) => {
+  const it = state.items[state.selected]; if (!it) return;
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.ic !== undefined) saveItem({ ...it, color: Number(t.dataset.ic) });
+  else if (t.id === 'in-rot') rotateItem(it);
+  else if (t.id === 'in-dup') {
+    const n = { ...it, id: uid('i'), x: it.x + 20, y: it.y + 20, z: Date.now() };
+    saveItem(n); state.selected = n.id;
+  } else if (t.id === 'in-save') {
+    const id = uid('c'); const cat = { name: it.name, w: it.w, d: it.d, color: it.color || 0, kind: it.kind || '' };
+    state.catalog[id] = { ...cat, id }; Store.set('catalog', id, cat); renderLib();
+    toast(`Saved ${it.name} (${it.w} × ${it.d} cm) to the library.`);
+  } else if (t.id === 'in-del') state.confirm = { kind: 'item', id: it.id };
+  else if (t.id === 'in-del-yes') { state.confirm = null; deleteItem(it.id); }
+  else if (t.id === 'in-del-no') state.confirm = null;
+  renderTabs(); renderItems(); renderInspector();
+});
+
+// Keyboard
+let nudgeTimer = 0, nudgePending = null;
+document.addEventListener('keydown', (e) => {
+  if (e.target.closest('input, select, textarea')) return;
+  const it = state.selected && state.items[state.selected];
+  if (e.key === 'Escape') { state.selected = null; state.confirm = null; renderItems(); renderInspector(); return; }
+  if (!it || state.readOnly) return;
+  if (e.key === 'r' || e.key === 'R') { e.preventDefault(); rotateItem(it); renderItems(); renderInspector(); return; }
+  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); state.confirm = { kind: 'item', id: it.id }; renderInspector(); const b = $('#in-del-yes'); b && b.focus(); return; }
+  const step = e.shiftKey ? 1 : state.grid;
+  const dirs = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+  if (dirs[e.key]) {
+    e.preventDefault();
+    const base = nudgePending || it;
+    const n = { ...base, x: base.x + dirs[e.key][0], y: base.y + dirs[e.key][1] };
+    nudgePending = n; state.items[n.id] = n;
+    renderItems();
+    clearTimeout(nudgeTimer);
+    nudgeTimer = setTimeout(() => { const p = nudgePending; nudgePending = null; if (p) { saveItem(p); renderInspector(); } }, 350);
+  }
+});
+
+// Tabs, toolbar, zoom
+$('#tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-floor]'); if (!b) return;
+  state.floor = b.getAttribute('data-floor'); state.selected = null; state.confirm = null;
+  safeLS(() => localStorage.setItem('hp-floor', state.floor));
+  applyZoom(1);
+  renderAll();
+});
+$('#gridsel').addEventListener('change', (e) => { state.grid = Number(e.target.value) || 5; safeLS(() => localStorage.setItem('hp-grid', state.grid)); });
+$('#edgesnap').addEventListener('change', (e) => { state.edgeSnap = e.target.checked; });
+function applyZoom(z) {
+  state.zoom = clamp(z, 1, 4);
+  svg.style.width = svg.style.height = (state.zoom * 100) + '%';
+  renderOverlay();
+}
+$('#zin').addEventListener('click', () => applyZoom(state.zoom * 1.4));
+$('#zout').addEventListener('click', () => applyZoom(state.zoom / 1.4));
+$('#zfit').addEventListener('click', () => applyZoom(1));
+
+// Versions
+$('#saveform').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (state.readOnly) return;
+  const name = $('#vername').value.trim() || `Layout ${Object.keys(state.versions).length + 1}`;
+  const items = Object.values(state.items).map(it => ({ ...cleanItem(it), id: it.id }));
+  let by = '';
+  try { by = (Store.user && typeof Store.user.id === 'function' && (await Store.user.id())) || ''; } catch {}
+  const id = uid('v');
+  const v = { name: name.slice(0, 60), createdAt: new Date().toISOString(), items, by };
+  state.versions[id] = { ...v, id };
+  Store.set('versions', id, v);
+  $('#vername').value = '';
+  renderVersions();
+  toast(`Saved “${v.name}” with ${items.length} item${items.length === 1 ? '' : 's'}.`);
+});
+$('#versions').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.vload) state.confirm = { kind: 'load', id: b.dataset.vload };
+  else if (b.dataset.vdel) state.confirm = { kind: 'vdel', id: b.dataset.vdel };
+  else if (b.dataset.cancel) state.confirm = null;
+  else if (b.dataset.vdelYes) { const id = b.dataset.vdelYes; state.confirm = null; delete state.versions[id]; Store.del('versions', id); }
+  else if (b.dataset.vloadYes) { const id = b.dataset.vloadYes; state.confirm = null; loadVersion(id); }
+  renderVersions(true);
+});
+function loadVersion(id) {
+  const v = state.versions[id];
+  if (!v || state.readOnly) return;
+  const keep = new Set((v.items || []).map(it => it.id));
+  Object.keys(state.items).forEach(iid => { if (!keep.has(iid)) deleteItem(iid); });
+  (v.items || []).forEach(it => { if (it && it.id) saveItem(it); });
+  state.selected = null;
+  renderAll();
+  toast(`Loaded “${v.name}”.`);
+}
+
+// ---------- Boot ----------
+async function boot() {
+  state.grid = Number(safeLS(() => localStorage.getItem('hp-grid'), 5)) || 5;
+  $('#gridsel').value = String(state.grid);
+  renderNewColors();
+  renderAll();
+  const loading = $('#loading');
+  await Store.init();
+  if (Store.mode === 'local') { setSync('local'); }
+  else {
+    loading.hidden = false;
+    try { if (Store.user && typeof Store.user.can === 'function') { const can = await Store.user.can('data.write'); if (can === false) state.readOnly = true; } } catch {}
+    const slow = setTimeout(() => { setSync('slow'); loading.textContent = 'Can’t reach the shared layout yet. It will appear once the connection returns.'; }, 10000);
+    Store.watch('placed', (m) => {
+      if (nudgePending && m[nudgePending.id]) m[nudgePending.id] = nudgePending;
+      state.items = m;
+      if (state.selected && !m[state.selected]) state.selected = null;
+      renderTabs(); renderItems();
+      if (!document.activeElement || !document.activeElement.closest('#insp')) renderInspector();
+    }, (err) => { clearTimeout(slow); loading.hidden = true; if (!err) setSync('live'); renderAll(); });
+  }
+  if (Store.mode === 'local') {
+    Store.watch('placed', (m) => { state.items = m; renderTabs(); renderItems(); renderInspector(); });
+  }
+  Store.watch('catalog', (m) => { state.catalog = m; renderLib(); });
+  Store.watch('versions', (m) => { state.versions = m; renderVersions(); });
+}
+boot();
+})();
+</script>
