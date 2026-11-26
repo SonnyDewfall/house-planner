@@ -19,6 +19,8 @@
   --grid-major: #d2dae3;
   --fixture: #cfd6de;
   --warn: #c27c0e;
+  --door-fill: rgba(214, 140, 30, 0.13);
+  --door-line: #b7791f;
   --clash: #d23c3c;
   --f0: #9cc3f0; --f1: #b5a6ef; --f2: #f2b7a1; --f3: #a8dcc0;
   --f4: #f2d88a; --f5: #c9cfd6; --f6: #e7a9c8; --f7: #9fd6dc;
@@ -32,7 +34,7 @@
     --bg: #12161b; --panel: #1a2027; --line: #2c343e; --ink: #e5eaf0; --muted: #98a4b3;
     --accent: #7ea2ff; --accent-ink: #0d1320; --accent-soft: #223258;
     --wall: #a9b5c3; --floor: #1f262e; --grid: #262e37; --grid-major: #303a45; --fixture: #3a4450;
-    --warn: #e2a13a; --clash: #ff6b6b;
+    --warn: #e2a13a; --clash: #ff6b6b; --door-fill: rgba(226, 161, 58, 0.16); --door-line: #e2a13a;
     --f0: #3d6aa3; --f1: #5d4fa0; --f2: #a0604a; --f3: #3f8a66; --f4: #9a8233; --f5: #5b6672; --f6: #93557a; --f7: #3d8790;
     --item-stroke: #d8e0ea;
     color-scheme: dark;
@@ -42,7 +44,7 @@
   --bg: #12161b; --panel: #1a2027; --line: #2c343e; --ink: #e5eaf0; --muted: #98a4b3;
   --accent: #7ea2ff; --accent-ink: #0d1320; --accent-soft: #223258;
   --wall: #a9b5c3; --floor: #1f262e; --grid: #262e37; --grid-major: #303a45; --fixture: #3a4450;
-  --warn: #e2a13a; --clash: #ff6b6b;
+  --warn: #e2a13a; --clash: #ff6b6b; --door-fill: rgba(226, 161, 58, 0.16); --door-line: #e2a13a;
   --f0: #3d6aa3; --f1: #5d4fa0; --f2: #a0604a; --f3: #3f8a66; --f4: #9a8233; --f5: #5b6672; --f6: #93557a; --f7: #3d8790;
   --item-stroke: #d8e0ea;
   color-scheme: dark;
@@ -145,6 +147,9 @@ input[type="number"] { font-family: var(--font-mono); }
 .tread { stroke: var(--wall); stroke-width: 1.2; opacity: 0.55; }
 .window { stroke: var(--floor); stroke-width: 12; }
 .window2 { stroke: var(--wall); stroke-width: 1.2; }
+.doorgap { fill: var(--floor); }
+.swing { fill: var(--door-fill); stroke: var(--door-line); stroke-width: 1.3; stroke-dasharray: 5 4; pointer-events: none; }
+.leaf { stroke: var(--door-line); stroke-width: 3; stroke-linecap: round; pointer-events: none; }
 .fixture { fill: url(#hatch); stroke: var(--wall); stroke-width: 1.5; }
 .chimney { fill: var(--wall); }
 .roomname { font-family: var(--font-head); font-weight: 600; fill: var(--muted); text-anchor: middle; pointer-events: none; opacity: 0.85; }
@@ -285,7 +290,7 @@ input[type="number"] { font-family: var(--font-mono); }
         </svg>
         <div class="loading" id="loading" hidden>Loading the shared layout…</div>
       </div>
-      <div class="readout" id="readout">Drag furniture to move it. Drag empty floor to move the view; pinch or use − / + to zoom.</div>
+      <div class="readout" id="readout">Shaded arcs are door swings. Drag furniture to move it; drag empty floor to move the view; pinch or use − / + to zoom.</div>
     </section>
 
     <aside class="right">
@@ -329,7 +334,17 @@ const FLOORS = [
       { name: 'Chimney breast', kind: 'chimney', r: [0, 648, 35, 123] },
       { name: 'Chimney breast', kind: 'chimney', r: [0, 1008, 35, 128] },
     ],
-    windows: [[262,0,366,0],[55,191,154,191],[64,1348,276,1348],[64,1278,64,1348],[276,1278,276,1348]],
+    windows: [[55,191,154,191],[64,1348,276,1348],[64,1278,64,1348],[276,1278,276,1348]],
+    doors: [
+      { h: [262, 0], d: [1, 0], s: [0, -1], r: 52, ext: true, name: 'Garden doors' },
+      { h: [366, 0], d: [-1, 0], s: [0, -1], r: 52, ext: true, name: 'Garden doors' },
+      { h: [382, 530], d: [-1, 0], s: [0, -1], r: 62, name: 'Kitchen door' },
+      { h: [307, 783], d: [0, 1], s: [-1, 0], r: 75, name: 'Dining room door' },
+      { h: [384, 949], d: [0, 1], s: [-1, 0], r: 75, name: 'Living room door' },
+      { h: [382, 550], d: [0, 1], s: [-1, 0], r: 62, name: 'WC door' },
+      { h: [460, 1278], d: [-1, 0], s: [0, -1], r: 64, ext: true, name: 'Front door' },
+    ],
+    openings: [[26, 923, 255, 10], [392, 850, 68, 10]],
   },
   {
     id: 'first', name: 'First', area: '44.6 m²',
@@ -337,15 +352,27 @@ const FLOORS = [
       { name: 'Bathroom', dims: '2.95 × 2.38 m', poly: R(192, 0, 270, 295) },
       { name: 'Bedroom 3', dims: '3.81 × 3.20 m', poly: R(0, 316, 320, 381) },
       { name: 'Landing', poly: R(330, 305, 132, 402), label: [396, 655] },
-      { name: 'Stairs', stairs: true, poly: R(340, 316, 122, 284) },
+      { name: 'Stairs', stairs: true, nowall: true, poly: R(340, 316, 122, 284) },
       { name: 'Bedroom 2', dims: '3.45 × 4.48 m', poly: R(0, 717, 462, 345) },
     ],
     fixtures: [
       { name: 'Chimney breast', kind: 'chimney', r: [430, 75, 32, 135] },
       { name: 'Chimney breast / cupboard', kind: 'chimney', r: [0, 336, 41, 235] },
       { name: 'Chimney breast', kind: 'chimney', r: [0, 807, 30, 141] },
+      { name: 'Alcove cupboard', kind: 'units', r: [0, 722, 25, 80] },
+      { name: 'Alcove cupboard', kind: 'units', r: [0, 960, 25, 97] },
     ],
     windows: [[264,0,382,0],[71,316,156,316],[71,1062,165,1062],[292,1062,392,1062]],
+    doors: [
+      { h: [460, 295], d: [-1, 0], s: [0, -1], r: 72, name: 'Bathroom door' },
+      { h: [320, 597], d: [0, 1], s: [-1, 0], r: 75, name: 'Bedroom 3 door' },
+      { h: [335, 717], d: [1, 0], s: [0, 1], r: 75, name: 'Bedroom 2 door' },
+      { h: [41, 345], d: [0, 1], s: [1, 0], r: 50, cupboard: true, name: 'Cupboard door' },
+      { h: [25, 722], d: [0, 1], s: [1, 0], r: 40, cupboard: true, name: 'Cupboard door' },
+      { h: [25, 802], d: [0, -1], s: [1, 0], r: 40, cupboard: true, name: 'Cupboard door' },
+      { h: [25, 985], d: [0, 1], s: [1, 0], r: 50, cupboard: true, name: 'Cupboard door' },
+    ],
+    openings: [],
   },
   {
     id: 'second', name: 'Second', area: '22.5 m²',
@@ -356,7 +383,14 @@ const FLOORS = [
       { name: 'Walk-in wardrobe', dims: '2.16 × 0.98', poly: R(382, 262, 98, 216) },
     ],
     fixtures: [],
-    windows: [[20,0,90,0],[150,0,300,0],[67,478,143,478],[240,478,310,478]],
+    windows: [[20,0,90,0],[67,478,143,478],[240,478,310,478]],
+    doors: [
+      { h: [150, 0], d: [1, 0], s: [0, 1], r: 70, ext: true, name: 'Juliet balcony doors' },
+      { h: [290, 0], d: [-1, 0], s: [0, 1], r: 70, ext: true, name: 'Juliet balcony doors' },
+      { h: [112, 90], d: [0, 1], s: [1, 0], r: 80, name: 'En-suite door' },
+      { h: [372, 385], d: [0, 1], s: [-1, 0], r: 75, name: 'Wardrobe door' },
+    ],
+    openings: [[372, 0, 10, 90]],
     note: 'Juliet balcony at the rear. Part of this floor has restricted head height.',
   },
 ];
@@ -547,7 +581,7 @@ function renderPlan() {
   svg.setAttribute('viewBox', `${bb.x - pad} ${bb.y - pad} ${bb.w + pad * 2} ${bb.h + pad * 2}`);
   const pts = (poly) => poly.map(p => p.join(',')).join(' ');
   let s = '';
-  f.rooms.forEach(r => { s += `<polygon class="wallpoly" points="${pts(r.poly)}"/>`; });
+  f.rooms.forEach(r => { if (!r.nowall) s += `<polygon class="wallpoly" points="${pts(r.poly)}"/>`; });
   f.windows.forEach(([x1, y1, x2, y2]) => {
     s += `<line class="window" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
     const dx = x1 === x2 ? 12 : 0, dy = y1 === y2 ? 12 : 0;
@@ -566,6 +600,21 @@ function renderPlan() {
   f.fixtures.forEach(x => {
     const [fx, fy, fw, fh] = x.r;
     s += `<rect class="${x.kind === 'chimney' ? 'chimney' : 'fixture'}" x="${fx}" y="${fy}" width="${fw}" height="${fh}"><title>${esc(x.name)}</title></rect>`;
+  });
+  (f.openings || []).forEach(([ox, oy, ow, oh]) => { s += `<rect class="doorgap" x="${ox}" y="${oy}" width="${ow}" height="${oh}"/>`; });
+  (f.doors || []).forEach(dr => {
+    const [hx, hy] = dr.h, [dx, dy] = dr.d, [sx, sy] = dr.s, r = dr.r;
+    if (!dr.cupboard) {
+      // gap in the wall behind the door face
+      const t = dr.ext ? 13 : 10;
+      const xs = [hx, hx + dx * r, hx - sx * t, hx + dx * r - sx * t], ys = [hy, hy + dy * r, hy - sy * t, hy + dy * r - sy * t];
+      const gx = Math.min(...xs), gy = Math.min(...ys);
+      s += `<rect class="doorgap" x="${gx}" y="${gy}" width="${Math.max(...xs) - gx}" height="${Math.max(...ys) - gy}"/>`;
+    }
+    const cx = hx + dx * r, cy = hy + dy * r, ox = hx + sx * r, oy = hy + sy * r;
+    const sweep = (dx * sy - dy * sx) > 0 ? 1 : 0;
+    s += `<path class="swing" d="M${hx} ${hy} L${cx} ${cy} A${r} ${r} 0 0 ${sweep} ${ox} ${oy} Z"><title>${esc(dr.name || 'Door')}</title></path>`;
+    s += `<line class="leaf" x1="${hx}" y1="${hy}" x2="${ox}" y2="${oy}"/>`;
   });
   f.rooms.forEach(r => {
     const b = bbox(r.poly);
@@ -589,7 +638,18 @@ function itemCheck(it) {
   const hits = (o) => r.x < o.x + o.w - 0.5 && r.x + r.w > o.x + 0.5 && r.y < o.y + o.h - 0.5 && r.y + r.h > o.y + 0.5;
   let clash = f.fixtures.some(x => hits({ x: x.r[0], y: x.r[1], w: x.r[2], h: x.r[3] }));
   if (!clash) clash = Object.values(state.items).some(o => o.id !== it.id && o.floor === it.floor && hits(fp(o)));
-  return { inside, clash };
+  const door = (f.doors || []).find(dr => blocksDoor(r, dr));
+  return { inside, clash, door };
+}
+function blocksDoor(r, dr) {
+  // the swing is a quarter circle: inside the square hinge..(hinge + r*d + r*s) and within r of the hinge
+  const [hx, hy] = dr.h;
+  const x2 = hx + (dr.d[0] + dr.s[0]) * dr.r, y2 = hy + (dr.d[1] + dr.s[1]) * dr.r;
+  const sq = { x1: Math.min(hx, x2), y1: Math.min(hy, y2), x2: Math.max(hx, x2), y2: Math.max(hy, y2) };
+  const ix1 = Math.max(r.x, sq.x1), iy1 = Math.max(r.y, sq.y1), ix2 = Math.min(r.x + r.w, sq.x2), iy2 = Math.min(r.y + r.h, sq.y2);
+  if (ix2 - ix1 < 1 || iy2 - iy1 < 1) return false;
+  const nx = clamp(hx, ix1, ix2), ny = clamp(hy, iy1, iy2);
+  return Math.hypot(nx - hx, ny - hy) < dr.r - 1;
 }
 function view(it) { return state.drag && state.drag.id === it.id ? { ...it, x: state.drag.x, y: state.drag.y } : it; }
 function itemSVG(it0) {
@@ -600,7 +660,7 @@ function itemSVG(it0) {
   const chk = itemCheck(it);
   const cls = ['item'];
   if (state.selected === it.id) cls.push('sel');
-  if (chk.clash) cls.push('clash'); else if (!chk.inside) cls.push('warn');
+  if (chk.clash || chk.door) cls.push('clash'); else if (!chk.inside) cls.push('warn');
   if (state.drag && state.drag.id === it.id) cls.push('dragging');
   const col = `var(--f${(it.color || 0) % NCOLORS})`;
   let g = `<g class="${cls.join(' ')}" data-id="${esc(it.id)}"><g transform="translate(${cx} ${cy}) rotate(${it.rot || 0})">`;
@@ -702,7 +762,7 @@ function renderOverlay() {
     const fmt = (v) => v === null ? '–' : Math.round(v) + ' cm';
     ro.textContent = `${it.name} · ${Math.round(it.w)}×${Math.round(it.d)} cm${room ? ' · ' + room.name : ''} · clearance ← ${fmt(c.left)}  → ${fmt(c.right)}  ↑ ${fmt(c.top)}  ↓ ${fmt(c.bottom)}`;
   } else {
-    ro.textContent = (curFloor().note ? curFloor().note + ' ' : '') + 'Drag furniture to move it. Drag empty floor to move the view; pinch or use − / + to zoom.';
+    ro.textContent = (curFloor().note ? curFloor().note + ' ' : '') + 'Shaded arcs are door swings. Drag furniture to move it; drag empty floor to move the view; pinch or use − / + to zoom.';
   }
   $('#layer-over').innerHTML = s;
 }
@@ -757,7 +817,8 @@ function renderInspector() {
     return;
   }
   const chk = itemCheck(it);
-  const status = chk.clash ? '<div class="status clash">Overlaps another item or a fixture.</div>'
+  const status = chk.door ? `<div class="status clash">Blocks the ${esc((chk.door.name || 'door').toLowerCase())}.</div>`
+    : chk.clash ? '<div class="status clash">Overlaps another item or a fixture.</div>'
     : !chk.inside ? '<div class="status warn">Crosses a wall or sits outside a room.</div>'
     : '<div class="status">Fits within the room.</div>';
   const ro = state.readOnly ? 'disabled' : '';
@@ -977,8 +1038,8 @@ function dragFrame() {
   else {
     d.el.setAttribute('transform', `translate(${d.x - d.rx} ${d.y - d.ry})`);
     const chk = itemCheck({ ...it, x: d.x, y: d.y });
-    d.el.classList.toggle('clash', chk.clash);
-    d.el.classList.toggle('warn', !chk.clash && !chk.inside);
+    d.el.classList.toggle('clash', chk.clash || !!chk.door);
+    d.el.classList.toggle('warn', !chk.clash && !chk.door && !chk.inside);
     renderOverlay();
   }
 }
