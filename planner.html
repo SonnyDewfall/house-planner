@@ -116,7 +116,9 @@ input[type="number"] { font-family: var(--font-mono); }
 .sw { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
 .sw[aria-pressed="true"] { border-color: var(--ink); }
 
-.stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: sticky; top: 0; }
+.stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+@media (min-width: 1101px) { .stage { position: sticky; top: 0; } }
+.sheethead { display: none; }
 .toolbar {
   display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 8px 12px;
   border-bottom: 1px solid var(--line); background: var(--panel); font-size: 12px;
@@ -186,10 +188,30 @@ input[type="number"] { font-family: var(--font-mono); }
 @media (max-width: 720px) {
   main { grid-template-columns: minmax(0, 1fr); }
   aside { border-right: 0; border-bottom: 1px solid var(--line); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-  aside.left { order: 2; }
   .stage { order: 1; }
   aside.right { order: 3; grid-template-columns: minmax(0, 1fr); }
-  .canvas { height: 68vh; min-height: 360px; }
+  .canvas { height: 62vh; min-height: 340px; }
+  body { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  /* Furniture library becomes a bottom panel that can be minimised */
+  aside.left {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; order: 2;
+    max-height: 46vh; overflow-y: auto; overscroll-behavior: contain;
+    padding-top: 0; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); gap: 16px;
+    border: 1px solid var(--line); border-bottom: 0; border-radius: 14px 14px 0 0;
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.14); transition: opacity 0.15s;
+  }
+  aside.left.collapsed { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  aside.left.collapsed > section { display: none; }
+  aside.left.dragging-out { opacity: 0.2; }
+  aside.left > section > h2:first-child { display: none; }
+  .sheethead {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    position: sticky; top: 0; z-index: 1; width: 100%; border: 0; background: var(--panel);
+    padding: 14px 0 10px; font-family: var(--font-head); font-weight: 600; font-size: 15px; color: var(--ink);
+  }
+  .sheethead::before { content: ""; position: absolute; top: 6px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--line); }
+  .sheethead .chev { transition: transform 0.15s; color: var(--muted); font-size: 13px; font-family: var(--font-ui); font-weight: 500; }
+  aside.left.collapsed .sheethead .chev { transform: none; }
   .sync { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -206,7 +228,8 @@ input[type="number"] { font-family: var(--font-mono); }
   </header>
 
   <main>
-    <aside class="left">
+    <aside class="left" id="libpanel">
+      <button class="sheethead" id="sheettoggle" type="button" aria-expanded="true" aria-controls="libpanel"><span>Furniture</span><span class="chev" id="sheetchev">Hide ▾</span></button>
       <section>
         <h2>Furniture</h2>
         <p class="hint" style="margin-bottom:10px">Drag onto the plan, or tap to drop it in the middle of the view.</p>
@@ -811,7 +834,16 @@ function removeItems(ids, label) {
 }
 function viewCenter() {
   const c = $('#canvas').getBoundingClientRect();
-  return clientToSvg(c.left + c.width / 2, c.top + c.height / 2);
+  let bottom = Math.min(c.bottom, window.innerHeight);
+  const panel = $('#libpanel');
+  if (getComputedStyle(panel).position === 'fixed') bottom = Math.min(bottom, panel.getBoundingClientRect().top);
+  const top = Math.max(c.top, 0);
+  if (bottom - top < 160) {
+    // plan is mostly off-screen (phone): drop it in the middle of the plan and bring the plan into view
+    $('#canvas').scrollIntoView({ block: 'start', behavior: 'smooth' });
+    return clientToSvg(c.left + c.width / 2, c.top + c.height / 2);
+  }
+  return clientToSvg(c.left + c.width / 2, (top + bottom) / 2);
 }
 function placeNew(src, at) {
   if (state.readOnly) { toast('You can view this plan but not change it.'); return; }
@@ -929,6 +961,7 @@ $('#lib').addEventListener('pointermove', (e) => {
     const gh = document.createElement('div');
     gh.className = 'ghost'; gh.textContent = src ? src.name : '';
     document.body.appendChild(gh); libDrag.ghost = gh;
+    $('#libpanel').classList.add('dragging-out');
   }
   if (libDrag.ghost) { libDrag.ghost.style.left = e.clientX + 'px'; libDrag.ghost.style.top = e.clientY + 'px'; }
 });
@@ -936,6 +969,7 @@ function endLibDrag(e, cancelled) {
   if (!libDrag || e.pointerId !== libDrag.pointerId) return;
   const d = libDrag; libDrag = null;
   if (d.ghost) d.ghost.remove();
+  $('#libpanel').classList.remove('dragging-out');
   if (cancelled) return;
   const src = libItems().find(x => x.id === d.id);
   if (!src) return;
@@ -1039,6 +1073,17 @@ $('#selbar').addEventListener('click', (e) => {
   }
   renderTabs(); renderItems(); renderInspector();
 });
+
+// Phones: furniture panel can be minimised
+function setSheet(collapsed) {
+  const panel = $('#libpanel');
+  panel.classList.toggle('collapsed', collapsed);
+  $('#sheettoggle').setAttribute('aria-expanded', String(!collapsed));
+  $('#sheetchev').textContent = collapsed ? 'Show ▴' : 'Hide ▾';
+  safeLS(() => localStorage.setItem('hp-sheet', collapsed ? '1' : '0'));
+}
+$('#sheettoggle').addEventListener('click', () => setSheet(!$('#libpanel').classList.contains('collapsed')));
+setSheet(safeLS(() => localStorage.getItem('hp-sheet'), null) !== '0');
 
 // Phones: stop the page scrolling while something is being dragged
 document.addEventListener('touchmove', (e) => { if (state.drag || libDrag) e.preventDefault(); }, { passive: false });
