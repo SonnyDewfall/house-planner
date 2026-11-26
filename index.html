@@ -124,6 +124,10 @@ input[type="number"] { font-family: var(--font-mono); }
 .toolbar label { display: flex; gap: 6px; align-items: center; color: var(--muted); }
 .toolbar select { width: auto; padding: 4px 6px; }
 .zoom { display: flex; gap: 4px; margin-left: auto; }
+.selbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.selbar .btn { padding: 4px 10px; font-size: 12px; }
+.selbar .sname { font-weight: 600; color: var(--ink); max-width: 12em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.restore { border: 0; background: transparent; color: var(--accent); padding: 4px 0; font-size: 12px; text-align: left; text-decoration: underline; }
 .zoom .btn { padding: 4px 10px; }
 .readout { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding: 6px 12px; border-top: 1px solid var(--line); background: var(--panel); min-height: 30px; overflow-wrap: anywhere; }
 .canvas { position: relative; flex: none; overflow: auto; min-height: 420px; height: calc(100vh - 175px); }
@@ -172,7 +176,8 @@ input[type="number"] { font-family: var(--font-mono); }
 .empty { border: 1px dashed var(--line); border-radius: 8px; padding: 12px; color: var(--muted); font-size: 12px; line-height: 1.45; }
 
 .ghost { position: fixed; z-index: 50; pointer-events: none; padding: 6px 10px; border-radius: 6px; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 500; transform: translate(-50%, -120%); box-shadow: 0 4px 14px rgba(0,0,0,0.2); }
-.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 13px; z-index: 60; max-width: calc(100vw - 32px); }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 13px; z-index: 60; max-width: calc(100vw - 32px); display: flex; gap: 14px; align-items: center; }
+.toast button { border: 0; background: transparent; color: var(--bg); font-weight: 600; text-decoration: underline; padding: 2px 4px; }
 
 @media (max-width: 1100px) {
   main { grid-template-columns: 220px minmax(0, 1fr); }
@@ -230,6 +235,7 @@ input[type="number"] { font-family: var(--font-mono); }
           </select>
         </label>
         <label for="edgesnap"><input type="checkbox" id="edgesnap" checked> Snap to walls &amp; furniture</label>
+        <div class="selbar" id="selbar"></div>
         <div class="zoom">
           <button class="btn" id="zout" title="Zoom out" aria-label="Zoom out">−</button>
           <button class="btn" id="zfit">Fit</button>
@@ -273,7 +279,7 @@ input[type="number"] { font-family: var(--font-mono); }
     </aside>
   </main>
 </div>
-<div class="toast" id="toast" hidden></div>
+<div class="toast" id="toast" role="status" hidden><span id="toastmsg"></span><button type="button" id="toastbtn" hidden></button></div>
 
 <script>
 (() => {
@@ -354,7 +360,17 @@ function inPoly(x, y, poly) {
   return inside;
 }
 let toastTimer = 0;
-function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3800); }
+let toastAction = null;
+function toast(msg, label, fn) {
+  const t = $('#toast'), b = $('#toastbtn');
+  $('#toastmsg').textContent = msg;
+  toastAction = fn || null; b.hidden = !fn; b.textContent = label || '';
+  t.hidden = false; clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; toastAction = null; }, fn ? 7000 : 3800);
+}
+document.addEventListener('click', (e) => {
+  if (e.target.id === 'toastbtn' && toastAction) { const fn = toastAction; toastAction = null; $('#toast').hidden = true; fn(); }
+});
 function safeLS(fn, fallback) { try { return fn(); } catch { return fallback; } }
 
 // Wall/fixture segments per floor, for snapping and clearance
@@ -655,8 +671,10 @@ function renderOverlay() {
 
 // ---------- Library ----------
 function libItems() {
-  const custom = Object.values(state.catalog).sort((a, b) => String(a.name).localeCompare(String(b.name)));
-  return [...BUILTINS, ...custom];
+  const all = Object.values(state.catalog);
+  const hidden = new Set(all.filter(c => c.hidden).map(c => c.builtinId));
+  const custom = all.filter(c => !c.hidden).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  return [...BUILTINS.filter(b => !hidden.has(b.id)), ...custom];
 }
 function miniIcon(it) {
   const m = Math.max(it.w, it.d);
@@ -669,20 +687,35 @@ function renderLib() {
     return `<div class="card" data-lib="${esc(it.id)}" role="button" tabindex="0" aria-label="Add ${esc(it.name)}">
       <div class="icon">${miniIcon(it)}</div>
       <div class="meta"><div class="name">${esc(it.name)}</div><div class="dims">${Math.round(it.w)} × ${Math.round(it.d)} cm</div></div>
-      ${it.builtin || state.readOnly ? '' : `<button class="x${confirming ? ' confirm' : ''}" data-delcat="${esc(it.id)}" title="Remove from library">${confirming ? 'Remove?' : '✕'}</button>`}
+      ${state.readOnly ? '' : `<button class="x${confirming ? ' confirm' : ''}" data-delcat="${esc(it.id)}" title="Remove from library">${confirming ? 'Remove?' : '✕'}</button>`}
     </div>`;
-  }).join('');
+  }).join('') + (Object.values(state.catalog).some(c => c.hidden) && !state.readOnly ? '<button class="restore" id="restorelib">Restore the standard items</button>' : '');
 }
 function renderNewColors() {
   $('#nf-colors').innerHTML = Array.from({ length: NCOLORS }, (_, i) => `<button type="button" class="sw" data-nc="${i}" aria-label="Colour ${i + 1}" aria-pressed="${state.newColor === i}" style="background: var(--f${i})"></button>`).join('');
 }
 
 // ---------- Inspector ----------
+function renderSelbar() {
+  const bar = $('#selbar');
+  const it = state.selected && state.items[state.selected];
+  if (state.readOnly) { bar.innerHTML = ''; return; }
+  if (it) {
+    bar.innerHTML = `<span class="sname">${esc(it.name)}</span><button class="btn" data-sb="rot">Rotate</button><button class="btn" data-sb="dup">Duplicate</button><button class="btn danger" data-sb="del">Remove</button>`;
+    return;
+  }
+  const n = Object.values(state.items).filter(x => x.floor === state.floor).length;
+  if (!n) { bar.innerHTML = ''; return; }
+  bar.innerHTML = state.confirm && state.confirm.kind === 'clear'
+    ? `<button class="btn danger solid" data-sb="clear-yes">Remove all ${n} on this floor</button><button class="btn" data-sb="clear-no">Cancel</button>`
+    : `<button class="btn" data-sb="clear">Clear this floor</button>`;
+}
 function renderInspector() {
+  renderSelbar();
   const el = $('#insp');
   const it = state.selected && state.items[state.selected];
   if (!it) {
-    el.innerHTML = `<div class="empty">Nothing selected. Click a piece of furniture on the plan to resize, rotate or recolour it.<br><br>Keys: <b>R</b> rotate · arrows nudge by the grid step (Shift: 1 cm) · <b>Delete</b> removes.</div>`;
+    el.innerHTML = `<div class="empty">Nothing selected. Click a piece of furniture on the plan to resize, rotate or recolour it.<br><br>Keys: <b>R</b> rotate · arrows nudge by the grid step (Shift: 1 cm) · <b>Delete</b> removes (with undo).</div>`;
     return;
   }
   const chk = itemCheck(it);
@@ -690,7 +723,6 @@ function renderInspector() {
     : !chk.inside ? '<div class="status warn">Crosses a wall or sits outside a room.</div>'
     : '<div class="status">Fits within the room.</div>';
   const ro = state.readOnly ? 'disabled' : '';
-  const confirming = state.confirm && state.confirm.kind === 'item' && state.confirm.id === it.id;
   el.innerHTML = `<div class="insp">
     <label class="f">Name<input type="text" id="in-name" value="${esc(it.name)}" maxlength="40" ${ro}></label>
     <div class="grid2">
@@ -705,9 +737,7 @@ function renderInspector() {
       <button class="btn" id="in-save" ${ro} title="Add this size to the furniture library">Save to library</button>
     </div>
     <div class="row">
-      ${confirming
-        ? `<button class="btn danger solid" id="in-del-yes">Delete ${esc(it.name)}</button><button class="btn" id="in-del-no">Cancel</button>`
-        : `<button class="btn danger" id="in-del" ${ro}>Delete</button>`}
+      <button class="btn danger" id="in-del" ${ro}>Remove from plan</button>
     </div>
   </div>`;
 }
@@ -766,6 +796,18 @@ function deleteItem(id) {
   delete state.items[id];
   if (state.selected === id) state.selected = null;
   Store.del('placed', id);
+}
+function removeItems(ids, label) {
+  if (state.readOnly || !ids.length) return;
+  const removed = ids.map(id => state.items[id]).filter(Boolean).map(it => ({ ...it }));
+  removed.forEach(it => deleteItem(it.id));
+  state.confirm = null;
+  renderTabs(); renderItems(); renderInspector();
+  toast(label || `Removed ${removed.length === 1 ? removed[0].name : removed.length + ' items'}.`, 'Undo', () => {
+    removed.forEach(it => saveItem(it));
+    if (removed.length === 1) state.selected = removed[0].id;
+    renderTabs(); renderItems(); renderInspector();
+  });
 }
 function viewCenter() {
   const c = $('#canvas').getBoundingClientRect();
@@ -873,7 +915,7 @@ svg.addEventListener('pointercancel', endDrag);
 // Library: drag a card onto the plan, or tap it
 let libDrag = null;
 $('#lib').addEventListener('pointerdown', (e) => {
-  if (e.target.closest('[data-delcat]')) return;
+  if (e.target.closest('[data-delcat], #restorelib')) return;
   const card = e.target.closest('[data-lib]');
   if (!card) return;
   e.preventDefault();
@@ -916,8 +958,17 @@ $('#lib').addEventListener('click', (e) => {
   if (!b) return;
   const id = b.getAttribute('data-delcat');
   if (state.confirm && state.confirm.kind === 'cat' && state.confirm.id === id) {
-    state.confirm = null; delete state.catalog[id]; Store.del('catalog', id);
+    state.confirm = null;
+    if (BUILTINS.some(x => x.id === id)) {
+      const hid = 'hide-' + id; const body = { hidden: true, builtinId: id };
+      state.catalog[hid] = { ...body, id: hid }; Store.set('catalog', hid, body);
+    } else { delete state.catalog[id]; Store.del('catalog', id); }
   } else state.confirm = { kind: 'cat', id };
+  renderLib();
+});
+$('#lib').addEventListener('click', (e) => {
+  if (e.target.id !== 'restorelib') return;
+  Object.values(state.catalog).filter(c => c.hidden).forEach(c => { delete state.catalog[c.id]; Store.del('catalog', c.id); });
   renderLib();
 });
 
@@ -970,11 +1021,32 @@ $('#insp').addEventListener('click', (e) => {
     const id = uid('c'); const cat = { name: it.name, w: it.w, d: it.d, color: it.color || 0, kind: it.kind || '' };
     state.catalog[id] = { ...cat, id }; Store.set('catalog', id, cat); renderLib();
     toast(`Saved ${it.name} (${it.w} × ${it.d} cm) to the library.`);
-  } else if (t.id === 'in-del') state.confirm = { kind: 'item', id: it.id };
-  else if (t.id === 'in-del-yes') { state.confirm = null; deleteItem(it.id); }
-  else if (t.id === 'in-del-no') state.confirm = null;
+  } else if (t.id === 'in-del') { removeItems([it.id]); return; }
   renderTabs(); renderItems(); renderInspector();
 });
+
+$('#selbar').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-sb]'); if (!b) return;
+  const a = b.dataset.sb, it = state.selected && state.items[state.selected];
+  if (a === 'rot' && it) rotateItem(it);
+  else if (a === 'dup' && it) { const n = { ...it, id: uid('i'), x: it.x + 20, y: it.y + 20, z: Date.now() }; saveItem(n); state.selected = n.id; }
+  else if (a === 'del' && it) { removeItems([it.id]); return; }
+  else if (a === 'clear') state.confirm = { kind: 'clear' };
+  else if (a === 'clear-no') state.confirm = null;
+  else if (a === 'clear-yes') {
+    const ids = Object.values(state.items).filter(x => x.floor === state.floor).map(x => x.id);
+    removeItems(ids, `Cleared the ${curFloor().name.toLowerCase()} floor.`); return;
+  }
+  renderTabs(); renderItems(); renderInspector();
+});
+
+// Phones: stop the page scrolling while something is being dragged
+document.addEventListener('touchmove', (e) => { if (state.drag || libDrag) e.preventDefault(); }, { passive: false });
+svg.addEventListener('touchstart', (e) => { if (e.target.closest && e.target.closest('.item')) e.preventDefault(); }, { passive: false });
+$('#lib').addEventListener('touchstart', (e) => {
+  if (e.target.closest('[data-delcat], #restorelib')) return;
+  if (e.target.closest('[data-lib]')) e.preventDefault();
+}, { passive: false });
 
 // Keyboard
 let nudgeTimer = 0, nudgePending = null;
@@ -984,7 +1056,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { state.selected = null; state.confirm = null; renderItems(); renderInspector(); return; }
   if (!it || state.readOnly) return;
   if (e.key === 'r' || e.key === 'R') { e.preventDefault(); rotateItem(it); renderItems(); renderInspector(); return; }
-  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); state.confirm = { kind: 'item', id: it.id }; renderInspector(); const b = $('#in-del-yes'); b && b.focus(); return; }
+  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeItems([it.id]); return; }
   const step = e.shiftKey ? 1 : state.grid;
   const dirs = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
   if (dirs[e.key]) {
