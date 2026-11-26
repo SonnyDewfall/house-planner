@@ -18,6 +18,8 @@
   --grid: #e6ebf0;
   --grid-major: #d2dae3;
   --fixture: #cfd6de;
+  --glass: #bfe0f5;
+  --glass-line: #3d86b8;
   --warn: #c27c0e;
   --door-fill: rgba(214, 140, 30, 0.13);
   --door-line: #b7791f;
@@ -33,7 +35,7 @@
   :root:not([data-theme="light"]) {
     --bg: #12161b; --panel: #1a2027; --line: #2c343e; --ink: #e5eaf0; --muted: #98a4b3;
     --accent: #7ea2ff; --accent-ink: #0d1320; --accent-soft: #223258;
-    --wall: #a9b5c3; --floor: #1f262e; --grid: #262e37; --grid-major: #303a45; --fixture: #3a4450;
+    --wall: #a9b5c3; --floor: #1f262e; --grid: #262e37; --grid-major: #303a45; --fixture: #3a4450; --glass: #23465e; --glass-line: #7cc0ee;
     --warn: #e2a13a; --clash: #ff6b6b; --door-fill: rgba(226, 161, 58, 0.16); --door-line: #e2a13a;
     --f0: #3d6aa3; --f1: #5d4fa0; --f2: #a0604a; --f3: #3f8a66; --f4: #9a8233; --f5: #5b6672; --f6: #93557a; --f7: #3d8790;
     --item-stroke: #d8e0ea;
@@ -43,7 +45,7 @@
 :root[data-theme="dark"] {
   --bg: #12161b; --panel: #1a2027; --line: #2c343e; --ink: #e5eaf0; --muted: #98a4b3;
   --accent: #7ea2ff; --accent-ink: #0d1320; --accent-soft: #223258;
-  --wall: #a9b5c3; --floor: #1f262e; --grid: #262e37; --grid-major: #303a45; --fixture: #3a4450;
+  --wall: #a9b5c3; --floor: #1f262e; --grid: #262e37; --grid-major: #303a45; --fixture: #3a4450; --glass: #23465e; --glass-line: #7cc0ee;
   --warn: #e2a13a; --clash: #ff6b6b; --door-fill: rgba(226, 161, 58, 0.16); --door-line: #e2a13a;
   --f0: #3d6aa3; --f1: #5d4fa0; --f2: #a0604a; --f3: #3f8a66; --f4: #9a8233; --f5: #5b6672; --f6: #93557a; --f7: #3d8790;
   --item-stroke: #d8e0ea;
@@ -145,8 +147,10 @@ input[type="number"] { font-family: var(--font-mono); }
 .gridpoly { fill: url(#grid); pointer-events: none; }
 .stairpoly { fill: var(--fixture); }
 .tread { stroke: var(--wall); stroke-width: 1.2; opacity: 0.55; }
-.window { stroke: var(--floor); stroke-width: 12; }
-.window2 { stroke: var(--wall); stroke-width: 1.2; }
+.window { stroke: var(--glass); stroke-linecap: butt; }
+.window2 { stroke: var(--glass-line); stroke-width: 1.6; }
+.skylight { fill: var(--glass); fill-opacity: 0.35; stroke: var(--glass-line); stroke-width: 1.3; stroke-dasharray: 6 4; pointer-events: none; }
+.skylight-x { stroke: var(--glass-line); stroke-width: 0.8; opacity: 0.6; pointer-events: none; }
 .doorgap { fill: var(--floor); }
 .swing { fill: var(--door-fill); stroke: var(--door-line); stroke-width: 1.3; stroke-dasharray: 5 4; pointer-events: none; }
 .leaf { stroke: var(--door-line); stroke-width: 3; stroke-linecap: round; pointer-events: none; }
@@ -334,7 +338,7 @@ const FLOORS = [
       { name: 'Chimney breast', kind: 'chimney', r: [0, 648, 35, 123] },
       { name: 'Chimney breast', kind: 'chimney', r: [0, 1008, 35, 128] },
     ],
-    windows: [[55,191,154,191],[64,1348,276,1348],[64,1278,64,1348],[276,1278,276,1348]],
+    windows: [[55,191,154,191],[50,535,144,535],[64,1348,276,1348],[64,1278,64,1348],[276,1278,276,1348]],
     doors: [
       { h: [262, 0], d: [1, 0], s: [0, -1], r: 52, ext: true, name: 'Garden doors' },
       { h: [366, 0], d: [-1, 0], s: [0, -1], r: 52, ext: true, name: 'Garden doors' },
@@ -345,6 +349,7 @@ const FLOORS = [
       { h: [460, 1278], d: [-1, 0], s: [0, -1], r: 64, ext: true, name: 'Front door' },
     ],
     openings: [[26, 923, 255, 10], [392, 850, 68, 10]],
+    skylights: [[31, 250, 80, 227]],
   },
   {
     id: 'first', name: 'First', area: '44.6 m²',
@@ -359,10 +364,11 @@ const FLOORS = [
       { name: 'Chimney breast', kind: 'chimney', r: [430, 75, 32, 135] },
       { name: 'Chimney breast / cupboard', kind: 'chimney', r: [0, 336, 41, 235] },
       { name: 'Chimney breast', kind: 'chimney', r: [0, 807, 30, 141] },
+      { name: 'Corner cupboard & shelves', kind: 'units', poly: [[240,316],[320,316],[320,401]] },
       { name: 'Alcove cupboard', kind: 'units', r: [0, 722, 25, 80] },
       { name: 'Alcove cupboard', kind: 'units', r: [0, 960, 25, 97] },
     ],
-    windows: [[264,0,382,0],[71,316,156,316],[71,1062,165,1062],[292,1062,392,1062]],
+    windows: [[264,0,382,0],[60,316,156,316],[71,1062,165,1062],[292,1062,392,1062]],
     doors: [
       { h: [460, 295], d: [-1, 0], s: [0, -1], r: 72, name: 'Bathroom door' },
       { h: [320, 597], d: [0, 1], s: [-1, 0], r: 75, name: 'Bedroom 3 door' },
@@ -371,6 +377,8 @@ const FLOORS = [
       { h: [25, 722], d: [0, 1], s: [1, 0], r: 40, cupboard: true, name: 'Cupboard door' },
       { h: [25, 802], d: [0, -1], s: [1, 0], r: 40, cupboard: true, name: 'Cupboard door' },
       { h: [25, 985], d: [0, 1], s: [1, 0], r: 50, cupboard: true, name: 'Cupboard door' },
+      { h: [240, 316], d: [0.685, 0.728], s: [-0.728, 0.685], r: 58, cupboard: true, name: 'Corner cupboard door' },
+      { h: [320, 401], d: [-0.685, -0.728], s: [-0.728, 0.685], r: 58, cupboard: true, name: 'Corner cupboard door' },
     ],
     openings: [],
   },
@@ -446,7 +454,7 @@ function floorSegs(fid) {
     }
   };
   f.rooms.forEach(r => { if (!r.stairs) addPoly(r.poly); else addPoly(r.poly); });
-  f.fixtures.forEach(x => addPoly(R(...x.r)));
+  f.fixtures.forEach(x => addPoly(fixPoly(x)));
   return (segCache[fid] = { v, h });
 }
 function itemSegs(fid, exceptId) {
@@ -582,11 +590,6 @@ function renderPlan() {
   const pts = (poly) => poly.map(p => p.join(',')).join(' ');
   let s = '';
   f.rooms.forEach(r => { if (!r.nowall) s += `<polygon class="wallpoly" points="${pts(r.poly)}"/>`; });
-  f.windows.forEach(([x1, y1, x2, y2]) => {
-    s += `<line class="window" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
-    const dx = x1 === x2 ? 12 : 0, dy = y1 === y2 ? 12 : 0;
-    s += `<line class="window2" x1="${x1 - dx / 2}" y1="${y1 - dy / 2}" x2="${x2 - dx / 2}" y2="${y2 - dy / 2}"/><line class="window2" x1="${x1 + dx / 2}" y1="${y1 + dy / 2}" x2="${x2 + dx / 2}" y2="${y2 + dy / 2}"/>`;
-  });
   f.rooms.forEach(r => {
     if (r.stairs) {
       s += `<polygon class="stairpoly" points="${pts(r.poly)}"/>`;
@@ -598,8 +601,24 @@ function renderPlan() {
     }
   });
   f.fixtures.forEach(x => {
-    const [fx, fy, fw, fh] = x.r;
-    s += `<rect class="${x.kind === 'chimney' ? 'chimney' : 'fixture'}" x="${fx}" y="${fy}" width="${fw}" height="${fh}"><title>${esc(x.name)}</title></rect>`;
+    const cls = x.kind === 'chimney' ? 'chimney' : 'fixture';
+    s += `<polygon class="${cls}" points="${pts(fixPoly(x))}"><title>${esc(x.name)}</title></polygon>`;
+  });
+  (f.skylights || []).forEach(([kx, ky, kw, kh]) => {
+    s += `<rect class="skylight" x="${kx}" y="${ky}" width="${kw}" height="${kh}"><title>Roof light</title></rect>`;
+    s += `<path class="skylight-x" d="M${kx} ${ky}L${kx + kw} ${ky + kh}M${kx + kw} ${ky}L${kx} ${ky + kh}"/>`;
+  });
+  f.windows.forEach(([x1, y1, x2, y2]) => {
+    // find which side of the room edge the wall is on, and draw the glass within the wall
+    const vert = x1 === x2, mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    const nx = vert ? 1 : 0, ny = vert ? 0 : 1;
+    const inRoom = (x, y) => f.rooms.some(r => inPoly(x, y, r.poly));
+    const a = inRoom(mx + nx * 6, my + ny * 6), b = inRoom(mx - nx * 6, my - ny * 6);
+    let off = 0, t = 10;
+    if (a && !b) { off = -6.5; t = 12; } else if (!a && b) { off = 6.5; t = 12; }
+    const X1 = x1 + nx * off, Y1 = y1 + ny * off, X2 = x2 + nx * off, Y2 = y2 + ny * off;
+    s += `<line class="window" x1="${X1}" y1="${Y1}" x2="${X2}" y2="${Y2}" stroke-width="${t}"><title>Window</title></line>`;
+    s += `<line class="window2" x1="${X1}" y1="${Y1}" x2="${X2}" y2="${Y2}"/>`;
   });
   (f.openings || []).forEach(([ox, oy, ow, oh]) => { s += `<rect class="doorgap" x="${ox}" y="${oy}" width="${ow}" height="${oh}"/>`; });
   (f.doors || []).forEach(dr => {
@@ -636,12 +655,37 @@ function itemCheck(it) {
   const corners = [[r.x + inset, r.y + inset], [r.x + r.w - inset, r.y + inset], [r.x + r.w - inset, r.y + r.h - inset], [r.x + inset, r.y + r.h - inset], [r.x + r.w / 2, r.y + r.h / 2]];
   const inside = f.rooms.some(room => corners.every(([x, y]) => inPoly(x, y, room.poly)));
   const hits = (o) => r.x < o.x + o.w - 0.5 && r.x + r.w > o.x + 0.5 && r.y < o.y + o.h - 0.5 && r.y + r.h > o.y + 0.5;
-  let clash = f.fixtures.some(x => hits({ x: x.r[0], y: x.r[1], w: x.r[2], h: x.r[3] }));
+  let clash = f.fixtures.some(x => x.poly ? rectHitsPoly(r, x.poly) : hits({ x: x.r[0], y: x.r[1], w: x.r[2], h: x.r[3] }));
   if (!clash) clash = Object.values(state.items).some(o => o.id !== it.id && o.floor === it.floor && hits(fp(o)));
   const door = (f.doors || []).find(dr => blocksDoor(r, dr));
   return { inside, clash, door };
 }
-function blocksDoor(r, dr) {
+function fixPoly(x) { return x.poly || R(...x.r); }
+function swingPoly(dr) {
+  const [hx, hy] = dr.h, [dx, dy] = dr.d, [sx, sy] = dr.s, r = dr.r;
+  const a0 = Math.atan2(dy, dx), a1 = Math.atan2(sy, sx);
+  let da = a1 - a0; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
+  const out = [[hx, hy]];
+  for (let i = 0; i <= 8; i++) { const a = a0 + da * i / 8; out.push([hx + Math.cos(a) * r, hy + Math.sin(a) * r]); }
+  return out;
+}
+function segX(p1, p2, p3, p4) {
+  const d = (a, b, c) => (c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0]);
+  const d1 = d(p3, p4, p1), d2 = d(p3, p4, p2), d3 = d(p1, p2, p3), d4 = d(p1, p2, p4);
+  return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
+}
+function rectHitsPoly(r, poly) {
+  const ins = 1; // ignore touching edges
+  const rr = { x1: r.x + ins, y1: r.y + ins, x2: r.x + r.w - ins, y2: r.y + r.h - ins };
+  if (rr.x2 <= rr.x1 || rr.y2 <= rr.y1) return false;
+  const rc = [[rr.x1, rr.y1], [rr.x2, rr.y1], [rr.x2, rr.y2], [rr.x1, rr.y2]];
+  if (poly.some(([x, y]) => x > rr.x1 && x < rr.x2 && y > rr.y1 && y < rr.y2)) return true;
+  if (rc.some(([x, y]) => inPoly(x, y, poly))) return true;
+  for (let i = 0; i < poly.length; i++) for (let j = 0; j < 4; j++) if (segX(poly[i], poly[(i + 1) % poly.length], rc[j], rc[(j + 1) % 4])) return true;
+  return false;
+}
+function blocksDoor(r, dr) { return rectHitsPoly(r, swingPoly(dr)); }
+function blocksDoorOld(r, dr) {
   // the swing is a quarter circle: inside the square hinge..(hinge + r*d + r*s) and within r of the hinge
   const [hx, hy] = dr.h;
   const x2 = hx + (dr.d[0] + dr.s[0]) * dr.r, y2 = hy + (dr.d[1] + dr.s[1]) * dr.r;
