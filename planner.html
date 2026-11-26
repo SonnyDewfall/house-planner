@@ -97,7 +97,12 @@ h2 { margin: 0 0 8px; font-family: var(--font-head); font-size: 13px; font-weigh
 .card .icon { width: 40px; height: 40px; display: grid; place-items: center; }
 .card .meta { min-width: 0; }
 .card .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card .dims { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.card .dims { font-family: var(--font-mono); font-size: 11px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0 8px; align-items: baseline; }
+.card .dims > * { white-space: nowrap; }
+.card .dims a, .linkrow a { color: var(--accent); font-family: var(--font-ui); font-weight: 500; text-decoration: underline; text-underline-offset: 2px; }
+.linkrow { display: flex; gap: 8px; align-items: center; font-size: 12px; min-width: 0; }
+.linkrow a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.fielderr { color: var(--clash); font-size: 12px; }
 .card .x { border: 0; background: transparent; color: var(--muted); padding: 4px 6px; border-radius: 4px; font-size: 12px; }
 .card .x:hover { background: var(--bg); color: var(--clash); }
 .card .x.confirm { color: var(--clash); font-weight: 600; }
@@ -105,7 +110,7 @@ h2 { margin: 0 0 8px; font-family: var(--font-head); font-size: 13px; font-weigh
 form.new { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 form.new .full { grid-column: 1 / -1; }
 label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
-input[type="text"], input[type="number"], select {
+input[type="text"], input[type="number"], input[type="url"], select {
   width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--floor);
 }
 input[type="number"] { font-family: var(--font-mono); }
@@ -252,6 +257,8 @@ input[type="number"] { font-family: var(--font-mono); }
           <label class="f full">Name<input type="text" id="nf-name" placeholder="e.g. Sofa" maxlength="40" required></label>
           <label class="f">Width (cm)<input type="number" id="nf-w" min="5" max="1000" step="1" placeholder="200" required></label>
           <label class="f">Depth (cm)<input type="number" id="nf-d" min="5" max="1000" step="1" placeholder="90" required></label>
+          <label class="f full">Link (optional)<input type="text" id="nf-url" autocapitalize="off" spellcheck="false" placeholder="https://shop.example/sofa" maxlength="600" inputmode="url"></label>
+          <div class="fielderr full" id="nf-urlerr" hidden>That link doesn’t look right. Paste the full web address starting with https://</div>
           <div class="full"><div class="swatches" id="nf-colors"></div></div>
           <button class="btn primary full" type="submit">Add to library &amp; plan</button>
         </form>
@@ -438,6 +445,16 @@ function toast(msg, label, fn) {
 document.addEventListener('click', (e) => {
   if (e.target.id === 'toastbtn' && toastAction) { const fn = toastAction; toastAction = null; $('#toast').hidden = true; fn(); }
 });
+// Links: accept "www.shop.com/…" or "https://…"; only https links are ever shown or opened
+function normUrl(v) {
+  v = String(v || '').trim();
+  if (!v) return '';
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(v)) v = 'https://' + v.replace(/^\/+/, '');
+  if (/^http:\/\//i.test(v)) v = 'https://' + v.slice(7);
+  try { const u = new URL(v); return u.protocol === 'https:' && u.hostname.includes('.') ? u.href.slice(0, 600) : null; } catch { return null; }
+}
+const safeLink = (v) => (typeof v === 'string' && /^https:\/\//i.test(v) ? v : '');
+const linkHost = (v) => { try { return new URL(v).hostname.replace(/^www\./, ''); } catch { return 'link'; } };
 function safeLS(fn, fallback) { try { return fn(); } catch { return fallback; } }
 
 // Wall/fixture segments per floor, for snapping and clearance
@@ -828,7 +845,7 @@ function renderLib() {
     const confirming = state.confirm && state.confirm.kind === 'cat' && state.confirm.id === it.id;
     return `<div class="card" data-lib="${esc(it.id)}" role="button" tabindex="0" aria-label="Add ${esc(it.name)}">
       <div class="icon">${miniIcon(it)}</div>
-      <div class="meta"><div class="name">${esc(it.name)}</div><div class="dims">${Math.round(it.w)} × ${Math.round(it.d)} cm</div></div>
+      <div class="meta"><div class="name">${esc(it.name)}</div><div class="dims"><span>${Math.round(it.w)} × ${Math.round(it.d)} cm</span>${safeLink(it.url) ? `<a href="${esc(safeLink(it.url))}" target="_blank" rel="noopener noreferrer" title="${esc(safeLink(it.url))}">Link ↗</a>` : ''}</div></div>
       ${state.readOnly ? '' : `<button class="x${confirming ? ' confirm' : ''}" data-delcat="${esc(it.id)}" title="Remove from library">${confirming ? 'Remove?' : '✕'}</button>`}
     </div>`;
   }).join('') + (Object.values(state.catalog).some(c => c.hidden) && !state.readOnly ? '<button class="restore" id="restorelib">Restore the standard items</button>' : '');
@@ -868,6 +885,9 @@ function renderInspector() {
   const ro = state.readOnly ? 'disabled' : '';
   el.innerHTML = `<div class="insp">
     <label class="f">Name<input type="text" id="in-name" value="${esc(it.name)}" maxlength="40" ${ro}></label>
+    <label class="f">Link<input type="text" id="in-url" autocapitalize="off" spellcheck="false" value="${esc(safeLink(it.url))}" placeholder="Paste a shop or product link" maxlength="600" inputmode="url" ${ro}></label>
+    <div class="fielderr" id="in-urlerr" hidden>That link doesn’t look right. Paste the full web address starting with https://</div>
+    ${safeLink(it.url) ? `<div class="linkrow"><a href="${esc(safeLink(it.url))}" target="_blank" rel="noopener noreferrer">Open ${esc(linkHost(it.url))} ↗</a></div>` : ''}
     <div class="grid2">
       <label class="f">Width (cm)<input type="number" id="in-w" value="${Math.round(it.w)}" min="5" max="1000" ${ro}></label>
       <label class="f">Depth (cm)<input type="number" id="in-d" value="${Math.round(it.d)}" min="5" max="1000" ${ro}></label>
@@ -926,7 +946,7 @@ function renderAll() {
 
 // ---------- Mutations ----------
 function cleanItem(it) {
-  return { floor: it.floor, name: String(it.name).slice(0, 40), w: Math.round(it.w), d: Math.round(it.d), x: Math.round(it.x), y: Math.round(it.y), rot: (it.rot || 0) % 360, color: (it.color || 0) % NCOLORS, kind: it.kind || '', z: it.z || Date.now() };
+  return { floor: it.floor, name: String(it.name).slice(0, 40), w: Math.round(it.w), d: Math.round(it.d), x: Math.round(it.x), y: Math.round(it.y), rot: (it.rot || 0) % 360, color: (it.color || 0) % NCOLORS, kind: it.kind || '', url: safeLink(it.url), z: it.z || Date.now() };
 }
 function saveItem(it) {
   if (state.readOnly) return;
@@ -969,7 +989,7 @@ function placeNew(src, at) {
   if (state.readOnly) { toast('You can view this plan but not change it.'); return; }
   const p = at || viewCenter();
   const g = state.grid;
-  const it = { id: uid('i'), floor: state.floor, name: src.name, w: src.w, d: src.d, rot: 0, color: src.color || 0, kind: src.kind || '' };
+  const it = { id: uid('i'), floor: state.floor, name: src.name, w: src.w, d: src.d, rot: 0, color: src.color || 0, kind: src.kind || '', url: safeLink(src.url) };
   it.x = Math.round((p.x - it.w / 2) / g) * g;
   it.y = Math.round((p.y - it.d / 2) / g) * g;
   it.z = Date.now();
@@ -1128,7 +1148,7 @@ svg.addEventListener('pointercancel', endDrag);
 // Library: drag a card onto the plan, or tap it
 let libDrag = null;
 $('#lib').addEventListener('pointerdown', (e) => {
-  if (e.target.closest('[data-delcat], #restorelib')) return;
+  if (e.target.closest('[data-delcat], #restorelib, a')) return;
   const card = e.target.closest('[data-lib]');
   if (!card) return;
   e.preventDefault();
@@ -1198,12 +1218,15 @@ $('#newform').addEventListener('submit', (e) => {
   const name = $('#nf-name').value.trim();
   const w = clamp(num($('#nf-w').value, 0), 5, 1000), d = clamp(num($('#nf-d').value, 0), 5, 1000);
   if (!name || !w || !d) return;
-  const cat = { name, w: Math.round(w), d: Math.round(d), color: state.newColor, kind: /\bbed\b/i.test(name) && !/sofa/i.test(name) ? 'bed' : '' };
+  const url = normUrl($('#nf-url').value);
+  $('#nf-urlerr').hidden = url !== null;
+  if (url === null) { $('#nf-url').focus(); return; }
+  const cat = { name, w: Math.round(w), d: Math.round(d), color: state.newColor, kind: /\bbed\b/i.test(name) && !/sofa/i.test(name) ? 'bed' : '', url };
   const id = uid('c');
   state.catalog[id] = { ...cat, id };
   Store.set('catalog', id, cat);
   placeNew(cat);
-  $('#nf-name').value = ''; $('#nf-w').value = ''; $('#nf-d').value = '';
+  $('#nf-name').value = ''; $('#nf-w').value = ''; $('#nf-d').value = ''; $('#nf-url').value = '';
   renderLib();
   toast(`Added ${name} to the library and the ${curFloor().name.toLowerCase()} floor.`);
 });
@@ -1212,6 +1235,11 @@ $('#newform').addEventListener('submit', (e) => {
 $('#insp').addEventListener('change', (e) => {
   const it = state.items[state.selected]; if (!it) return;
   if (e.target.id === 'in-name') { const v = e.target.value.trim(); if (v) saveItem({ ...it, name: v }); }
+  if (e.target.id === 'in-url') {
+    const url = normUrl(e.target.value);
+    if (url === null) { $('#in-urlerr').hidden = false; return; }
+    saveItem({ ...it, url });
+  }
   if (e.target.id === 'in-w' || e.target.id === 'in-d') {
     const key = e.target.id === 'in-w' ? 'w' : 'd';
     const v = clamp(Math.round(num(e.target.value, it[key])), 5, 1000);
@@ -1233,7 +1261,7 @@ $('#insp').addEventListener('click', (e) => {
     const n = { ...it, id: uid('i'), x: it.x + 20, y: it.y + 20, z: Date.now() };
     saveItem(n); state.selected = n.id;
   } else if (t.id === 'in-save') {
-    const id = uid('c'); const cat = { name: it.name, w: it.w, d: it.d, color: it.color || 0, kind: it.kind || '' };
+    const id = uid('c'); const cat = { name: it.name, w: it.w, d: it.d, color: it.color || 0, kind: it.kind || '', url: safeLink(it.url) };
     state.catalog[id] = { ...cat, id }; Store.set('catalog', id, cat); renderLib();
     toast(`Saved ${it.name} (${it.w} × ${it.d} cm) to the library.`);
   } else if (t.id === 'in-del') { removeItems([it.id]); return; }
@@ -1271,7 +1299,7 @@ document.addEventListener('touchmove', (e) => { if (state.drag || libDrag || pan
 canvasEl.addEventListener('touchstart', (e) => { e.preventDefault(); }, { passive: false });
 canvasEl.addEventListener('wheel', (e) => { if (e.ctrlKey) { e.preventDefault(); zoomAt(state.zoom * Math.exp(-e.deltaY / 200), e.clientX, e.clientY); } }, { passive: false });
 $('#lib').addEventListener('touchstart', (e) => {
-  if (e.target.closest('[data-delcat], #restorelib')) return;
+  if (e.target.closest('[data-delcat], #restorelib, a')) return;
   if (e.target.closest('[data-lib]')) e.preventDefault();
 }, { passive: false });
 
