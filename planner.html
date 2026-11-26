@@ -160,6 +160,8 @@ input[type="number"] { font-family: var(--font-mono); }
 .item.sel .body { stroke: var(--accent); stroke-width: 3.5; }
 .item.warn .body { stroke: var(--warn); stroke-width: 3; stroke-dasharray: 8 5; }
 .item.clash .body { stroke: var(--clash); stroke-width: 3.5; }
+.snapghost { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 6 4; pointer-events: none; }
+.item.dragging { will-change: transform; }
 .guide { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 4; pointer-events: none; }
 .dim { stroke: var(--accent); stroke-width: 1.3; pointer-events: none; }
 .dimtxt { font-family: var(--font-mono); font-size: 12px; fill: var(--accent); text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: var(--floor); stroke-width: 4px; }
@@ -634,7 +636,13 @@ function renderItems() {
   // selected / dragged item last so it sits on top
   items.sort((a, b) => (a.id === state.selected) - (b.id === state.selected) || (a.z || 0) - (b.z || 0));
   $('#layer-items').innerHTML = items.map(itemSVG).join('');
+  if (state.drag) attachDragEl();
   renderOverlay();
+}
+function attachDragEl() {
+  const d = state.drag;
+  d.el = $('#layer-items').querySelector(`[data-id="${CSS.escape(d.id)}"]`);
+  d.rx = d.x; d.ry = d.y; // position the element was drawn at
 }
 
 function clearances(it) {
@@ -665,6 +673,13 @@ function renderOverlay() {
   let s = '';
   const id = state.drag ? state.drag.id : state.selected;
   const it0 = id && state.items[id];
+  if (state.drag && state.drag.snap && state.drag.moved) {
+    const it = state.items[state.drag.id];
+    if (it) {
+      const r = fp({ ...it, x: state.drag.snap.x, y: state.drag.snap.y });
+      s += `<rect class="snapghost" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="3"/>`;
+    }
+  }
   if (state.drag && state.drag.guides) {
     const bb = bbox(curFloor().rooms.flatMap(r => r.poly));
     state.drag.guides.x.forEach(x => { s += `<line class="guide" x1="${x}" y1="${bb.y - 40}" x2="${x}" y2="${bb.y + bb.h + 40}"/>`; });
@@ -940,10 +955,33 @@ svg.addEventListener('pointerdown', (e) => {
   if (state.confirm && state.confirm.kind === 'item') state.confirm = null;
   if (state.readOnly) { renderItems(); renderInspector(); return; }
   const p = clientToSvg(e.clientX, e.clientY);
-  state.drag = { id, ox: p.x - it.x, oy: p.y - it.y, x: it.x, y: it.y, sx: e.clientX, sy: e.clientY, moved: false, guides: null, pointerId: e.pointerId };
-  try { svg.setPointerCapture(e.pointerId); } catch {}
-  renderItems(); renderInspector();
+  state.drag = { id, ox: p.x - it.x, oy: p.y - it.y, x: it.x, y: it.y, px: it.x, py: it.y, sx: e.clientX, sy: e.clientY, moved: false, guides: null, snap: null, pointerId: e.pointerId, raf: 0 };
+  // Update the touched element in place (replacing it mid-touch breaks dragging on phones)
+  $('#layer-items').querySelectorAll('.item.sel').forEach(el => el.classList.remove('sel'));
+  g.classList.add('sel', 'dragging');
+  $('#layer-items').appendChild(g);
+  state.drag.el = g; state.drag.rx = it.x; state.drag.ry = it.y;
+  renderOverlay(); renderInspector();
 });
+function dragFrame() {
+  const d = state.drag;
+  if (!d) return;
+  d.raf = 0;
+  const it = state.items[d.id];
+  if (!it) { state.drag = null; renderItems(); return; }
+  d.x = d.px; d.y = d.py;
+  const s = snapPos(it, d.px, d.py);
+  d.snap = Math.abs(s.x - d.px) >= 1.5 || Math.abs(s.y - d.py) >= 1.5 ? s : null;
+  d.guides = s.guides;
+  if (!d.el || !d.el.isConnected) renderItems();
+  else {
+    d.el.setAttribute('transform', `translate(${d.x - d.rx} ${d.y - d.ry})`);
+    const chk = itemCheck({ ...it, x: d.x, y: d.y });
+    d.el.classList.toggle('clash', chk.clash);
+    d.el.classList.toggle('warn', !chk.clash && !chk.inside);
+    renderOverlay();
+  }
+}
 svg.addEventListener('pointermove', (e) => {
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pinch && touches.size >= 2) {
@@ -961,11 +999,8 @@ svg.addEventListener('pointermove', (e) => {
   if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 3) return;
   d.moved = true;
   const p = clientToSvg(e.clientX, e.clientY);
-  const it = state.items[d.id];
-  if (!it) { state.drag = null; return; }
-  const s = snapPos(it, p.x - d.ox, p.y - d.oy);
-  d.x = s.x; d.y = s.y; d.guides = s.guides;
-  renderItems();
+  d.px = p.x - d.ox; d.py = p.y - d.oy;
+  if (!d.raf) d.raf = requestAnimationFrame(dragFrame);
 });
 function endDrag(e) {
   touches.delete(e.pointerId);
@@ -973,10 +1008,14 @@ function endDrag(e) {
   if (pan && e.pointerId === pan.id) pan = null;
   const d = state.drag;
   if (!d || (e && e.pointerId !== d.pointerId)) return;
+  if (d.raf) cancelAnimationFrame(d.raf);
   state.drag = null;
   const it = state.items[d.id];
-  if (it && d.moved && (it.x !== d.x || it.y !== d.y)) saveItem({ ...it, x: d.x, y: d.y });
-  renderItems(); renderInspector();
+  if (it && d.moved) {
+    const s = snapPos(it, d.px, d.py); // snap once, on release
+    if (it.x !== s.x || it.y !== s.y) saveItem({ ...it, x: s.x, y: s.y });
+  }
+  renderTabs(); renderItems(); renderInspector();
 }
 svg.addEventListener('pointerup', endDrag);
 svg.addEventListener('pointercancel', endDrag);
@@ -1234,13 +1273,14 @@ async function boot() {
     Store.watch('placed', (m) => {
       if (nudgePending && m[nudgePending.id]) m[nudgePending.id] = nudgePending;
       state.items = m;
+      if (state.drag) return; // redraw when the drag ends
       if (state.selected && !m[state.selected]) state.selected = null;
       renderTabs(); renderItems();
       if (!document.activeElement || !document.activeElement.closest('#insp')) renderInspector();
     }, (err) => { clearTimeout(slow); loading.hidden = true; if (!err) setSync('live'); renderAll(); });
   }
   if (Store.mode === 'local') {
-    Store.watch('placed', (m) => { state.items = m; renderTabs(); renderItems(); renderInspector(); });
+    Store.watch('placed', (m) => { state.items = m; if (state.drag) return; renderTabs(); renderItems(); renderInspector(); });
   }
   Store.watch('catalog', (m) => { state.catalog = m; renderLib(); });
   Store.watch('versions', (m) => { state.versions = m; renderVersions(); });
